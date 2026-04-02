@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" /><link rel="stylesheet" th:href="@{/styles/style.css}"/>
+<title>Регистрация</title>
+</head>
+<body>
+    <div class="login-box">
+        <div class="logo">sicelica</div>
+        <form id="registrationForm">
+            <input id="username" class="input" type="text"
+                   placeholder="логин" required/>
+            <input id="password" class="input" type="password"
+                   placeholder="пароль" required/>
+            <input id="passwordConfirmation" class="input" type="password"
+                   placeholder="повторите пароль" required/>
+            <input id="email" class="input" type="text"
+                   placeholder="введите почту" required/>
+
+            <button class="btn" id="registerBtn">Зарегистрироваться</button>
+
+            <div class="bottom-links">
+                <a th:href="@{/login}">Войти</a>
+            </div>
+        </form>
+
+
+    </div>
+    <script>
+        document.getElementById('registrationForm')
+            .addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value;
+                const passwordConfirmation = document.getElementById('passwordConfirmation').value;
+                const email = document.getElementById('email').value.trim();
+
+                if (!username || !password || !passwordConfirmation || !email) {
+                    showError('Пожалуйста, заполните все поля');
+                    return;
+                }
+
+                if (password !== passwordConfirmation) {
+                    showError('Пароли не совпадают');
+                    return;
+                }
+
+                if (!isValidEmail(email)) {
+                    showError('Введите корректный email');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/v1/auth/register', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            username,
+                            password,
+                            passwordConfirmation,
+                            email
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        showError(data.message || 'Ошибка регистрации');
+                        return;
+                    }
+
+                    localStorage.setItem('accessToken', data.accessToken);
+                    localStorage.setItem('refreshToken', data.refreshToken);
+                    localStorage.setItem('userId', data.id);
+                    localStorage.setItem('username', data.username);
+
+
+                    window.location.href = '/chat';
+
+                } catch (error) {
+                    console.error('Ошибка:', error);
+                    showError('Ошибка сервера. Попробуйте позже.');
+                }
+            });
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function showError(message) {
+            let errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) {
+                errorDiv = document.createElement('div');
+                errorDiv.id = 'errorMessage';
+                errorDiv.className = 'error-message';
+                document.getElementById('registrationForm').prepend(errorDiv);
+            }
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

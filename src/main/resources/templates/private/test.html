@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="../../static/styles/style.css">
+    <title>Мессенджер</title>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="nav-elements">
+            <div class="nav-icons">
+                <button class="profile-button">
+                    <img class="avatar-img" src="../../static/img/avatar1.JPG" alt="аватар">
+                    <span class="base-inscription">Профиль</span>
+                </button>
+                <button class="folder-button">
+                    <img src="../../static/icons/folder-icon.svg" alt="папка">
+                    <span class="base-inscription">Название</span>
+                </button>
+            </div>
+            <div class="settings-block">
+                <button class="settings-button">
+                    <img class="settings-icon" src="../../static/icons/settings-icon.svg" alt="настройки">
+                </button>
+            </div>
+        </div>
+
+        <div class="chats-list">
+            <div class="search-form">
+                <input class="search-form-txt" type="text" placeholder="Найти">
+            </div>
+            <ul class="chats" id="chatsContainer">
+                <li class="card" onclick="openChat(this)">
+                    <div class="chat-card">
+                        <div class="avatar">
+                            <img class="avatar-img" src="../../static/img/avatar1.JPG" alt="">
+                        </div>
+                        <div class="card-content">
+                            <div class="name-time">
+                                <span class="user-name">Заметки</span>
+                                <time class="message-time">01:40</time>
+                            </div>
+                            <span class="user-message">Привет, мир!</span>
+                        </div>
+                    </div>
+                </li>
+                <li class="card" onclick="openChat(this)">
+                    <div class="chat-card">
+                        <div class="avatar">
+                            <img class="avatar-img" src="../../static/img/avatar1.JPG" alt="">
+                        </div>
+                        <div class="card-content">
+                            <div class="name-time">
+                                <span class="user-name">Алексей</span>
+                                <time class="message-time">12:00</time>
+                            </div>
+                            <span class="user-message">Как дела?</span>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <div class="resizer"></div>
+
+        <div class="main-dialog empty-dialog" id="mainDialog">
+            <p class="main-dialog-inscription">Выберите, кому хотели бы написать</p>
+        </div>
+    </div>
+
+    <script src="../../static/js/script.js"></script>
+</body>
+</html>

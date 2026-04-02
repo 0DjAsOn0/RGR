@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rgr
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  sql:
+    init:
+      mode: always
+      continue-on-error: false
+      data-locations: classpath:db/schema.sql
+
+  mail:
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    host: smtp.gmail.com
+    port: 587
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+security:
+  jwt:
+    secret: 0720640ed6ea9a449aa75e54a5c0b788a92fae60a2eb006ff1e8e15de7d968a9=
+    access: 3600000
+    refresh: 2592000000
