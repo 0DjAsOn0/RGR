@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,6 +23,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import javax.sql.DataSource;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor(onConstructor_ = @__(@Lazy))
@@ -29,6 +32,11 @@ public class ApplicationConfig {
 
     private final JwtTokenProvider tokenProvider;
     private final ApplicationContext applicationContext;
+
+    @Bean
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -42,7 +50,6 @@ public class ApplicationConfig {
     ) {
         return configuration.getAuthenticationManager();
     }
-
 
     @Bean
     @SneakyThrows
@@ -76,19 +83,18 @@ public class ApplicationConfig {
                                         }))
                 .authorizeHttpRequests(configurer ->
                         configurer
-                                .requestMatchers("/login", "/register","/passreset", "/")
+                                .requestMatchers("/login", "/register", "/passreset", "/check-email", "/")
                                 .permitAll()
                                 .requestMatchers("/styles/**", "/js/**", "/img/**", "/icons/**")
                                 .permitAll()
                                 .requestMatchers("/api/v1/auth/**")
                                 .permitAll()
-                                .requestMatchers("/swagger-ui/**")
+                                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/graphiql")
                                 .permitAll()
-                                .requestMatchers("/v3/api-docs/**")
+                                .requestMatchers("/ws/**")
                                 .permitAll()
-                                .requestMatchers("/graphiql")
-                                .permitAll()
-                                .anyRequest().authenticated())
+                                .anyRequest().authenticated()
+                )
 
                 .addFilterBefore(new JwtTokenFilter(tokenProvider),
                         UsernamePasswordAuthenticationFilter.class);

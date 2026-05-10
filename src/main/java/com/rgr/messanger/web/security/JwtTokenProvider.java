@@ -3,6 +3,7 @@ package com.rgr.messanger.web.security;
 import com.rgr.messanger.entity.user.Role;
 import com.rgr.messanger.entity.user.User;
 import com.rgr.messanger.exception.AccessDeniedException;
+import com.rgr.messanger.exception.EmailVerificationException;
 import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.auth.JwtResponse;
 import io.jsonwebtoken.Claims;
@@ -23,7 +24,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 
 @RequiredArgsConstructor
 @Service
@@ -149,4 +149,30 @@ public class JwtTokenProvider {
                 .getSubject();
     }
 
+    public String generateVerificationToken(String email) {
+        Claims claims = Jwts.claims()
+                .subject(email)
+                .add("type", "email-verification")
+                .build();
+        Instant validity = Instant.now().plus(24, ChronoUnit.HOURS);
+        return Jwts.builder()
+                .claims(claims)
+                .expiration(Date.from(validity))
+                .signWith(key)
+                .compact();
+    }
+
+    public String getEmailFromVerificationToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        if (!"email-verification".equals(claims.get("type"))) {
+            throw new EmailVerificationException("Неверный тип токена");
+        }
+
+        return claims.getSubject();
+    }
 }

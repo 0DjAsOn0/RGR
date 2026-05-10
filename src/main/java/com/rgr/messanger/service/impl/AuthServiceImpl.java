@@ -1,6 +1,7 @@
 package com.rgr.messanger.service.impl;
 
 import com.rgr.messanger.entity.user.User;
+import com.rgr.messanger.exception.EmailVerificationException;
 import com.rgr.messanger.service.AuthService;
 import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.auth.JwtRequest;
@@ -29,6 +30,11 @@ public class AuthServiceImpl implements AuthService {
                         loginRequest.getUsername(), loginRequest.getPassword())
         );
         User user = userService.getByUsername(loginRequest.getUsername());
+
+        if (!user.isEmailVerified()) {
+            throw new EmailVerificationException("Подтвердите email перед входом");
+        }
+
         jwtResponse.setId(user.getId());
         jwtResponse.setUsername(user.getUsername());
         jwtResponse.setAccessToken(jwtTokenProvider.createAccessToken(

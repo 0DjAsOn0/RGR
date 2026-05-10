@@ -6,44 +6,38 @@ import lombok.SneakyThrows;
 
 import java.sql.ResultSet;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.List;
 
 public class MessageRowMapper {
 
     @SneakyThrows
-    public static Message mapRow(ResultSet resultSet){
-        if (resultSet.next()){
-            Message message = new Message();
-            message.setId(resultSet.getLong("message_id"));
-            message.setText(resultSet.getString("message_text"));
-            message.setStatus(Status.valueOf(resultSet.getString("message_status")));
-            Timestamp timestamp = resultSet.getTimestamp("send_date");
-            if (timestamp != null){
-                message.setSendDate(timestamp.toLocalDateTime());
-            }
-
-            return message;
-        }
-        return null;
+    public static Message mapRow(ResultSet rs) {
+        if (!rs.next()) return null;
+        return extractMessage(rs);
     }
 
     @SneakyThrows
-    public static List<Message> mapRows(ResultSet resultSet) {
-        List<Message> messages = new ArrayList<>();
-        while (resultSet.next()) {
-            Message message = new Message();
-            message.setId(resultSet.getLong("message_id"));
-            if (!resultSet.wasNull()) {
-                message.setText(resultSet.getString("message_text"));
-                message.setStatus(Status.valueOf(resultSet.getString("message_status")));
-                Timestamp timestamp = resultSet.getTimestamp("send_date");
-                if (timestamp != null) {
-                    message.setSendDate(timestamp.toLocalDateTime());
-                }
-                messages.add(message);
-            }
-        }
-        return messages;
+    public static Message extractMessage(ResultSet rs) {
+        Message message = new Message();
+        message.setId(rs.getLong("message_id"));
+        message.setChatId(rs.getLong("message_chat_id"));
+        message.setSenderId(rs.getLong("message_sender_id"));
+        message.setText(rs.getString("message_text"));
+        message.setType(rs.getString("message_type"));
+        message.setEdited(rs.getBoolean("message_is_edited"));
+        message.setDeleted(rs.getBoolean("message_is_deleted"));
+
+        long replyToId = rs.getLong("message_reply_to_id");
+        if (!rs.wasNull()) message.setReplyToId(replyToId);
+
+        String status = rs.getString("message_status");
+        message.setStatus(status != null ? Status.valueOf(status) : Status.NOT_SENDING);
+
+        Timestamp sendDate = rs.getTimestamp("message_send_date");
+        if (sendDate != null) message.setSendDate(sendDate.toLocalDateTime());
+
+        Timestamp editedAt = rs.getTimestamp("message_edited_at");
+        if (editedAt != null) message.setEditedAt(editedAt.toLocalDateTime());
+
+        return message;
     }
 }

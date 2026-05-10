@@ -18,6 +18,8 @@ public class User {
     private String status;
     private LocalDateTime lastSeen;
     private boolean online;
+    private boolean emailVerified;
+    private boolean emailNotifications;
     private Set<Role> roles;
     private List<Message> message;
 }

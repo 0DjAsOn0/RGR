@@ -17,10 +17,19 @@ spring:
     host: smtp.gmail.com
     port: 587
     properties:
-      mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 security:
   jwt:
     secret: 0720640ed6ea9a449aa75e54a5c0b788a92fae60a2eb006ff1e8e15de7d968a9=
     access: 3600000
     refresh: 2592000000
+app:
+  base-url: http://localhost:8080

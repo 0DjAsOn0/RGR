@@ -5,13 +5,14 @@ import com.rgr.messanger.entity.user.User;
 import lombok.SneakyThrows;
 
 import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.util.HashSet;
 import java.util.Set;
 
 public class UserRowMapper {
 
     @SneakyThrows
-    public static User mapRow(ResultSet resultSet){
+    public static User mapRow(ResultSet resultSet) {
 
         if (!resultSet.next()) {
             return null;
@@ -21,11 +22,20 @@ public class UserRowMapper {
         user.setId(resultSet.getLong("user_id"));
         user.setUsername(resultSet.getString("user_username"));
         user.setEmail(resultSet.getString("user_email"));
+        user.setEmailVerified(resultSet.getBoolean("user_email_verified"));
+        user.setEmailNotifications(resultSet.getBoolean("user_email_notifications"));
         user.setPassword(resultSet.getString("user_password"));
         user.setAvatarUrl(resultSet.getString("user_avatar_url"));
+        user.setStatus(resultSet.getString("user_status"));
+
+
+        Timestamp lastSeen = resultSet.getTimestamp("user_last_seen");
+        if (lastSeen != null) {
+            user.setLastSeen(lastSeen.toLocalDateTime());
+        }
+
         Set<Role> roles = new HashSet<>();
         String role = resultSet.getString("user_role");
-
         if (role != null) {
             roles.add(Role.valueOf(role));
         }
@@ -42,4 +52,3 @@ public class UserRowMapper {
         return user;
     }
 }
-

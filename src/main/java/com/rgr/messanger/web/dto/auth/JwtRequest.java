@@ -10,5 +10,6 @@ public class JwtRequest {
     private String username;
     @NotNull(message = "Поле пароль не может быть пустым")
     private String password;
+    private boolean rememberMe;
 
 }

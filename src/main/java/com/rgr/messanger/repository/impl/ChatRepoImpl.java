@@ -1,0 +1,178 @@
+package com.rgr.messanger.repository.impl;
+
+import com.rgr.messanger.entity.chat.Chat;
+import com.rgr.messanger.repository.ChatRepo;
+import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.stereotype.Repository;
+
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+@RequiredArgsConstructor
+public class ChatRepoImpl implements ChatRepo {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    // ========================
+    // ВСЕ ЧАТЫ ПОЛЬЗОВАТЕЛЯ
+    // ========================
+    private static final String FIND_BY_USER_ID = """
+            SELECT
+                c.id             as chat_id,
+                c.type           as chat_type,
+                c.name           as chat_name,
+                c.avatar_url     as chat_avatar_url,
+                c.updated_at     as chat_updated_at,
+                m.text           as last_message_text,
+                m.send_date      as last_message_time,
+                u.id             as interlocutor_id,
+                u.username       as interlocutor_name,
+                u.avatar_url     as interlocutor_avatar,
+                u.status         as interlocutor_status,
+                COUNT(unread.id) as unread_count
+            FROM chats c
+            JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = ?
+            LEFT JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id != ?
+            LEFT JOIN users u ON u.id = cm2.user_id
+            LEFT JOIN messages m ON m.id = (
+                SELECT id FROM messages
+                WHERE chat_id = c.id AND is_deleted = FALSE
+                ORDER BY send_date DESC
+                LIMIT 1
+            )
+            LEFT JOIN messages unread ON unread.chat_id = c.id
+                AND unread.sender_id != ?
+                AND unread.is_deleted = FALSE
+                AND unread.id > COALESCE((
+                    SELECT last_read_msg FROM message_reads
+                    WHERE chat_id = c.id AND user_id = ?
+                ), 0)
+            GROUP BY c.id, c.type, c.name, c.avatar_url, c.updated_at,
+                     m.text, m.send_date, u.id, u.username, u.avatar_url, u.status
+            ORDER BY COALESCE(m.send_date, c.created_at) DESC
+            """;
+
+    @Override
+    public List<Chat> findByUserId(Long userId) {
+        return jdbcTemplate.query(
+                FIND_BY_USER_ID,
+                (rs, rowNum) -> {
+                    Chat chat = new Chat();
+                    chat.setId(rs.getLong("chat_id"));
+                    chat.setType(rs.getString("chat_type"));
+                    chat.setName(rs.getString("chat_name"));
+                    chat.setAvatarUrl(rs.getString("chat_avatar_url"));
+                    chat.setLastMessage(rs.getString("last_message_text"));
+                    chat.setInterlocutorId(rs.getLong("interlocutor_id"));
+                    chat.setInterlocutorName(rs.getString("interlocutor_name"));
+                    chat.setInterlocutorAvatar(rs.getString("interlocutor_avatar"));
+                    chat.setUnreadCount(rs.getInt("unread_count"));
+
+                    Timestamp lastTime = rs.getTimestamp("last_message_time");
+                    if (lastTime != null) {
+                        chat.setLastMessageTime(lastTime.toLocalDateTime());
+                    }
+                    return chat;
+                },
+                userId, userId, userId, userId  // 4 параметра для ?
+        );
+    }
+
+    // ========================
+    // НАЙТИ ПРИВАТНЫЙ ЧАТ
+    // ========================
+    private static final String FIND_PRIVATE_CHAT = """
+            SELECT c.id as chat_id
+            FROM chats c
+            JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = ?
+            JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id = ?
+            WHERE c.type = 'private'
+            LIMIT 1
+            """;
+
+    @Override
+    public Optional<Chat> findPrivateChat(Long userId1, Long userId2) {
+        List<Chat> result = jdbcTemplate.query(
+                FIND_PRIVATE_CHAT,
+                (rs, rowNum) -> {
+                    Chat chat = new Chat();
+                    chat.setId(rs.getLong("chat_id"));
+                    return chat;
+                },
+                userId1, userId2
+        );
+        return result.stream().findFirst();
+    }
+
+    // ========================
+    // СОЗДАТЬ ЧАТ
+    // ========================
+    private static final String CREATE_CHAT = """
+            INSERT INTO chats (type, creator_id)
+            VALUES ('private', ?)
+            """;
+
+    @Override
+    public Long createPrivateChat(Long creatorId) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+
+        jdbcTemplate.update(connection -> {
+            PreparedStatement stmt = connection.prepareStatement(
+                    CREATE_CHAT, PreparedStatement.RETURN_GENERATED_KEYS
+            );
+            stmt.setLong(1, creatorId);
+            return stmt;
+        }, keyHolder);
+
+        return ((Number) keyHolder.getKeys().get("id")).longValue();
+    }
+
+    // ========================
+    // ДОБАВИТЬ УЧАСТНИКА
+    // ========================
+    private static final String ADD_MEMBER = """
+            INSERT INTO chat_members (chat_id, user_id)
+            VALUES (?, ?)
+            ON CONFLICT DO NOTHING
+            """;
+
+    @Override
+    public void addMember(Long chatId, Long userId) {
+        jdbcTemplate.update(ADD_MEMBER, chatId, userId);
+    }
+
+    // ========================
+    // НАЙТИ ЧАТ ПО ID
+    // ========================
+    private static final String FIND_BY_ID = """
+            SELECT id        as chat_id,
+                   type      as chat_type,
+                   name      as chat_name,
+                   avatar_url as chat_avatar_url
+            FROM chats
+            WHERE id = ?
+            """;
+
+    @Override
+    public Optional<Chat> findById(Long chatId) {
+        List<Chat> result = jdbcTemplate.query(
+                FIND_BY_ID,
+                (rs, rowNum) -> {
+                    Chat chat = new Chat();
+                    chat.setId(rs.getLong("chat_id"));
+                    chat.setType(rs.getString("chat_type"));
+                    chat.setName(rs.getString("chat_name"));
+                    chat.setAvatarUrl(rs.getString("chat_avatar_url"));
+                    return chat;
+                },
+                chatId
+        );
+        return result.stream().findFirst();
+    }
+}

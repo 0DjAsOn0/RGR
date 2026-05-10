@@ -2,6 +2,7 @@ package com.rgr.messanger.controller;
 
 import com.rgr.messanger.entity.user.User;
 import com.rgr.messanger.service.AuthService;
+import com.rgr.messanger.service.EmailVerificationService;
 import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.auth.JwtRequest;
 import com.rgr.messanger.web.dto.auth.JwtResponse;
@@ -11,11 +12,12 @@ import com.rgr.messanger.web.mappers.UserMapper;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -26,15 +28,27 @@ public class AuthController {
     private final AuthService authService;
     private final UserService userService;
     private final UserMapper userMapper;
+    private final EmailVerificationService emailVerificationService; // добавили
 
     @PostMapping("/register")
-    public UserDto register(
-            @Validated(OnCreate.class)
-            @RequestBody final UserDto userDto
+    public ResponseEntity<Map<String, String>> register(
+            @Validated(OnCreate.class) @RequestBody UserDto userDto
     ) {
         User user = userMapper.toEntity(userDto);
-        User createdUser = userService.create(user);
-        return userMapper.toDto(createdUser);
+        userService.create(user);
+        return ResponseEntity.ok(Map.of(
+                "message", "Проверьте почту и подтвердите email"
+        ));
+    }
+
+    @GetMapping("/verify-email")
+    public ResponseEntity<Map<String, String>> verifyEmail(
+            @RequestParam String token
+    ) {
+        emailVerificationService.verifyToken(token);
+        return ResponseEntity.ok(Map.of(
+                "message", "Email подтверждён! Теперь можно войти."
+        ));
     }
 
     @PostMapping("/login")
@@ -44,17 +58,29 @@ public class AuthController {
     ) {
         JwtResponse jwtResponse = authService.login(loginRequest);
 
+        User user = userService.getByUsername(jwtResponse.getUsername());
+        userService.updateOnlineStatus(user.getId(), true);
+
+        int maxAge = loginRequest.isRememberMe()
+                ? 60 * 60 * 24 * 30  // 30 дней
+                : 60 * 60 * 24;      // 1 день
+
         Cookie cookie = new Cookie("accessToken", jwtResponse.getAccessToken());
         cookie.setHttpOnly(true);
         cookie.setPath("/");
-        cookie.setMaxAge(60 * 60 * 24);
+        cookie.setMaxAge(maxAge);
         response.addCookie(cookie);
-
         return jwtResponse;
     }
 
     @PostMapping("/logout")
-    public void logout(HttpServletResponse response) {
+    public void logout(HttpServletResponse response, Principal principal) {
+
+        if (principal != null) {
+            User user = userService.getByUsername(principal.getName());
+            userService.updateOnlineStatus(user.getId(), false);
+        }
+
         Cookie cookie = new Cookie("accessToken", "");
         cookie.setHttpOnly(true);
         cookie.setPath("/");
@@ -63,11 +89,8 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public JwtResponse refresh(
-            @RequestBody final String refreshToken
-    ) {
+    public JwtResponse refresh(@RequestBody final String refreshToken) {
         return authService.refresh(refreshToken);
     }
-
 }
 
