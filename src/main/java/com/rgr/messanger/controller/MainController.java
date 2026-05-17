@@ -192,6 +192,19 @@ public class MainController {
         return ResponseEntity.ok().build();
     }
 
+
+    @GetMapping("/api/v1/users/{id}")
+    @ResponseBody
+    public ResponseEntity<UserResponse> getUserById(
+            @PathVariable Long id,
+            Principal principal
+    ) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        User user = userService.getById(id);
+        return ResponseEntity.ok(UserResponse.fromUser(user));
+    }
+
+
     @GetMapping("/api/v1/users/search")
     @ResponseBody
     public ResponseEntity<List<UserSearchResponse>> searchUsers(

@@ -24,39 +24,53 @@ export function renderChatList(chats) {
         return;
     }
 
-    container.innerHTML = chats.map(chat => `
-        <li class="card"
-            onclick="handleOpenChat(this)"
-            data-chat-id="${chat.id}"
-            data-user-id="${chat.interlocutorId ?? ''}"
-            data-user-name="${escapeHtml(chat.interlocutorName ?? chat.name ?? 'Чат')}"
-            data-user-avatar="${chat.interlocutorAvatar ?? '/img/avatar1.JPG'}">
-            <div class="chat-card">
-                <div class="avatar">
-                    <img class="avatar-img"
-                         src="${chat.interlocutorAvatar ?? '/img/avatar1.JPG'}"
-                         alt="">
-                </div>
-                <div class="card-content">
-                    <div class="name-time">
-                        <span class="user-name">
-                            ${escapeHtml(chat.interlocutorName ?? chat.name ?? 'Чат')}
-                        </span>
-                        <time class="message-time">${chat.lastMessageTime ?? ''}</time>
+    container.innerHTML = chats.map(chat => {
+
+        const isNotes = chat.name === 'Заметки' && !chat.interlocutorId;
+
+        const name   = isNotes
+            ? 'Заметки'
+            : escapeHtml(chat.interlocutorName ?? chat.name ?? 'Чат');
+
+        const avatar = isNotes
+            ? null
+            : (chat.interlocutorAvatar ?? '/avatars/avatar.png');
+
+        return `
+            <li class="card"
+                data-chat-id="${chat.id}"
+                data-user-id="${chat.interlocutorId ?? ''}"
+                data-user-name="${name}"
+                data-user-avatar="${avatar ?? ''}">
+                <div class="chat-card">
+                    <div class="avatar">
+                        ${isNotes
+            ? `<div class="notes-avatar">📝</div>`
+            : `<img class="avatar-img" src="${avatar}" alt="">`
+        }
                     </div>
-                    <div class="message-preview">
-                        <span class="user-message">
-                            ${escapeHtml(chat.lastMessage ?? 'Нет сообщений')}
-                        </span>
-                        ${chat.unreadCount > 0
-        ? `<span class="unread-badge">${chat.unreadCount}</span>`
-        : ''}
+                    <div class="card-content">
+                        <div class="name-time">
+                            <span class="user-name">${name}</span>
+                            <time class="message-time">
+                                ${chat.lastMessageTime ?? ''}
+                            </time>
+                        </div>
+                        <div class="message-preview">
+                            <span class="user-message">
+                                ${escapeHtml(chat.lastMessage ?? 'Нет сообщений')}
+                            </span>
+                            ${chat.unreadCount > 0
+            ? `<span class="unread-badge">${chat.unreadCount}</span>`
+            : ''}
+                        </div>
                     </div>
                 </div>
-            </div>
-        </li>
-    `).join('');
+            </li>
+        `;
+    }).join('');
 }
+
 
 // ========================
 // ПОИСК
@@ -113,11 +127,11 @@ export function renderSearchResults(users) {
         <li class="card search-card"
             data-user-id="${user.id}"
             data-user-name="${escapeHtml(user.username)}"
-            data-user-avatar="${user.avatarUrl ?? '/img/avatar1.JPG'}">
+            data-user-avatar="${user.avatarUrl ?? '/avatars/avatar.png'}">
             <div class="chat-card">
                 <div class="avatar">
                     <img class="avatar-img"
-                         src="${user.avatarUrl ?? '/img/avatar1.JPG'}"
+                         src="${user.avatarUrl ?? '/avatars/avatar.png'}"
                          alt="">
                 </div>
                 <div class="card-content">

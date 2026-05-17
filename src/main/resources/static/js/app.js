@@ -189,19 +189,30 @@ export async function openChat(card) {
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
     card.classList?.add('active');
 
+    const badge = card.querySelector('.unread-badge');
+    if (badge) badge.remove();
+
     const userId     = card.dataset.userId;
     const userName   = card.dataset.userName   ?? 'Собеседник';
-    const userAvatar = card.dataset.userAvatar ?? '/img/avatar1.JPG';
-    let   chatId     = card.dataset.chatId;
+    const userAvatar = card.dataset.userAvatar ?? '/avatars/avatar.png';
+    let   chatId     = card.dataset.chatId;  // ✅ let а не const — потому что ниже меняем
+
+    if (chatId) {
+        fetch(`/api/v1/messages/chat/${chatId}/read`, {
+            method: 'POST',
+            credentials: 'include'
+        }).catch(err => console.error('Ошибка отметки прочитанных:', err));
+    }
+
+    const isNotes = !userId && !!chatId;
 
     if (!chatId && userId) {
         const data = await fetchOrCreateChat(userId);
         chatId = data.chatId;
         card.dataset.chatId = chatId;
     }
-
-    state.currentChatId      = chatId;
-    state.currentChatUserId  = userId;
+    state.currentChatId     = chatId;
+    state.currentChatUserId = userId || null;
 
     pushChatState(chatId);
 
@@ -210,14 +221,20 @@ export async function openChat(card) {
     dialog.innerHTML = `
         <div class="dialog-header">
             <div class="dialog-header-info">
-                <img class="avatar-img" src="${userAvatar}" alt="">
+                ${isNotes
+        ? `<div class="notes-avatar" style="flex-shrink:0">📝</div>`
+        : `<img class="avatar-img" src="${userAvatar}" alt="">`
+    }
                 <div class="dialog-header-text">
-                    <span class="dialog-name">${escapeHtml(userName)}</span>
-                    <span class="dialog-status" id="dialogStatus">...</span>
+                    <span class="dialog-name">
+                        ${isNotes ? 'Заметки' : escapeHtml(userName)}
+                    </span>
+                    <span class="dialog-status" id="dialogStatus">
+                        ${isNotes ? 'Личные заметки' : 'Загрузка...'}
+                    </span>
                 </div>
             </div>
             <div class="dialog-header-actions">
-                <button class="icon-btn">🔍</button>
                 <button class="icon-btn">⋮</button>
             </div>
         </div>
@@ -227,22 +244,50 @@ export async function openChat(card) {
         </div>
 
         <div class="dialog-input-area">
-            <button class="icon-btn">📎</button>
+            <button class="icon-btn">
+                <img class="attachment-icon" src="/icons/attachment.svg" alt="вложение">
+            </button>
             <textarea
                 class="message-input"
                 id="messageInput"
-                placeholder="Написать сообщение..."
-                rows="1"
-                onkeydown="handleMessageKeydown(event)">
-            </textarea>
-            <button class="icon-btn">😊</button>
-            <button class="icon-btn send-btn" onclick="sendMessage()">➤</button>
+                placeholder="${isNotes ? 'Написать заметку...' : 'Написать сообщение...'}"
+                rows="1"></textarea>
+            <button class="icon-btn send-btn">➤</button>
         </div>
     `;
+
+    if (!isNotes && userId) {
+        loadUserStatus(userId);
+    }
 
     await loadMessages(chatId);
     subscribeToChat(chatId, onMessageReceived);
 }
+
+async function loadUserStatus(userId) {
+    try {
+        const response = await fetch(`/api/v1/users/${userId}`, {
+            credentials: 'include'
+        });
+        if (!response.ok) return;
+
+        const user = await response.json();
+        const statusEl = document.getElementById('dialogStatus');
+        if (statusEl) {
+            statusEl.textContent = user.lastSeen ?? 'не в сети';
+
+            // ✅ Подсвечиваем если онлайн
+            if (user.status === 'online') {
+                statusEl.style.color = '#4caf50';
+            } else {
+                statusEl.style.color = '';
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статуса:', error);
+    }
+}
+
 
 // ========================
 // ОТПРАВКА СООБЩЕНИЯ
@@ -280,6 +325,9 @@ async function sendMessageHttp(content, input) {
 
     } catch (error) {
         console.error('Ошибка HTTP отправки:', error);
+
+        const lastMsg = document.querySelector('.message-out:last-child .message-status');
+        if (lastMsg) lastMsg.innerHTML = formatStatus('NOT_SENDING');
     }
 }
 

@@ -177,7 +177,22 @@ html, body{
     gap: 10px;
 }
 
+.logout-icon{
+    height: 30px;
+    width: 30px;
+
+}
+
 .logout-button:hover{
+    cursor: pointer;
+}
+
+.attachment-icon{
+    height: 24px;
+    width: 24px;
+}
+
+.attachment-btn:hover{
     cursor: pointer;
 }
 
@@ -189,6 +204,18 @@ html, body{
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.notes-avatar {
+    width:            46px;
+    height:           46px;
+    border-radius:    50%;
+    background:       linear-gradient(135deg, #667eea, #764ba2);
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    font-size:        22px;
+    flex-shrink:      0;
 }
 
 .resizer {
@@ -212,7 +239,7 @@ html, body{
 .main-dialog-inscription{
     border-radius: 30px;
     background-color: #1e2c3a;
-    padding: 6px;
+    padding: 9px;
     font-size: 15px;
 }
 
@@ -239,7 +266,6 @@ html, body{
     color: #C2C3CB;
     width: 100%;
     padding: 8px 12px;
-    border: none;
     outline: none;
     font-size: 14px;
 }
@@ -325,7 +351,6 @@ html, body{
     text-overflow: ellipsis;
     min-width: 0;
 }
-
 
 .message-time {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -754,6 +779,17 @@ html, body{
     background-color: #17212b;
 }
 
+.unread-badge {
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 50%;
+    padding: 2px 7px;
+    font-size: 12px;
+    font-weight: bold;
+    min-width: 20px;
+    text-align: center;
+}
+
 /* Скроллбар */
 .dialog-messages::-webkit-scrollbar {
     width: 6px;
@@ -783,10 +819,39 @@ html, body{
 }
 
 .message-bubble {
-    padding: 8px 12px;
+    padding: 6px 10px 4px 10px;
     border-radius: 12px;
     position: relative;
     word-break: break-word;
+    display: flex;
+    max-width: 100%;
+}
+
+.message-preview{
+    display: flex;
+}
+
+.dialog-messages.empty {
+    justify-content: center;
+    align-items: center;
+}
+
+.no-messages{
+    border-radius: 30px;
+    background-color: #1e2c3a;
+    padding: 9px;
+    font-size: 15px;
+}
+
+.message-meta {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    align-self: flex-end;
+    margin-left: auto;
+    padding-left: 8px;
+    margin-bottom: -2px;
+    white-space: nowrap;
 }
 
 /* Входящее сообщение */
@@ -805,16 +870,14 @@ html, body{
     color: #e8f1f8;
     font-size: 14px;
     line-height: 1.5;
-    padding-right: 40px; /* место под время */
+    margin: 0;
+    padding-right: 0;
 }
 
 .message-time-small {
     color: #7d9bb5;
     font-size: 11px;
-    position: absolute;
-    bottom: 6px;
-    right: 10px;
-    white-space: nowrap;
+    line-height: 1;
 }
 
 .message-out .message-time-small {
@@ -826,7 +889,7 @@ html, body{
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px;
+    padding: 5px 8px;
     background-color: #1f2e3d;
     border-top: 1px solid #0e1621;
     flex-shrink: 0;
@@ -856,6 +919,17 @@ html, body{
 
 .message-input:focus {
     border-color: #2b5278;
+}
+
+
+.status-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 1px;
+}
+
+.status-icon svg {
+    display: block;
 }
 
 /* Результаты поиска */

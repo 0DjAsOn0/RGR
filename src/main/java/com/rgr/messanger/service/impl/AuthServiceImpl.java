@@ -21,20 +21,21 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
 
     @Override
-    public JwtResponse login(
-            final JwtRequest loginRequest
-    ) {
-        JwtResponse jwtResponse = new JwtResponse();
+    public JwtResponse login(final JwtRequest loginRequest) {
+
+        User user = userService.getByEmail(loginRequest.getEmail());
+
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(), loginRequest.getPassword())
+                        user.getUsername(), loginRequest.getPassword())
         );
-        User user = userService.getByUsername(loginRequest.getUsername());
 
         if (!user.isEmailVerified()) {
             throw new EmailVerificationException("Подтвердите email перед входом");
         }
 
+        JwtResponse jwtResponse = new JwtResponse();
         jwtResponse.setId(user.getId());
         jwtResponse.setUsername(user.getUsername());
         jwtResponse.setAccessToken(jwtTokenProvider.createAccessToken(

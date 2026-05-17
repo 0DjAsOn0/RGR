@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8"/>
     <link rel="stylesheet" th:href="@{/styles/style.css}"/>
-    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="./icons/favicon.ico" type="image/x-icon">
     <title>Вход</title>
 </head>
 <body>
@@ -11,8 +11,8 @@
         <div class="logo">sicelica</div>
 
         <form id="loginForm">
-            <input id="username" class="input" type="text"
-                   placeholder="логин" required/>
+            <input id="email" class="input" type="text"
+                   placeholder="почта" required/>
             <input id="password" class="input" type="password"
                    placeholder="пароль" required/>
 
@@ -41,7 +41,8 @@
                 .addEventListener('submit', async function (e) {
                     e.preventDefault();
 
-                    const username   = document.getElementById('username').value;
+                    const email = document.getElementById('email').value;
+
                     const password   = document.getElementById('password').value;
 
                     const rememberMe = document.querySelector('input[name="remember-me"]').checked;
@@ -51,7 +52,7 @@
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
 
-                            body: JSON.stringify({ username, password, rememberMe })
+                            body: JSON.stringify({ email, password, rememberMe })
                         });
 
                         if (!response.ok) {
@@ -73,7 +74,7 @@
                     }
                 });
 
-            ['username', 'password'].forEach(id => {
+            ['email', 'password'].forEach(id => {
                 document.getElementById(id).addEventListener('input', function () {
                     document.getElementById('errorBox').style.display = 'none';
                 });

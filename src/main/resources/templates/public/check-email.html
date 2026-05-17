@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <link rel="stylesheet" th:href="@{/styles/style.css}"/>
+    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <title>Подтвердите email</title>
+</head>
+<body>
+<div class="login-box">
+    <div class="logo">sicelica</div>
+
+    <div style="text-align: center; padding: 20px;">
+        <h2>Письмо отправлено!</h2>
+        <p id="emailText">Проверьте вашу почту и перейдите по ссылке для подтверждения аккаунта.</p>
+        <p style="color: #888; font-size: 14px;">Ссылка действительна 24 часа.</p>
+    </div>
+
+    <div class="bottom-links">
+        <a th:href="@{/login}">Вернуться на страницу входа</a>
+    </div>
+</div>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    if (email) {
+        document.getElementById('emailText').textContent =
+            'Письмо отправлено на ' + email + '. Перейдите по ссылке для подтверждения аккаунта.';
+    }
+</script>
+</body>
+</html>

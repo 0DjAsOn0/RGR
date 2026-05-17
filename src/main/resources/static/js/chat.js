@@ -14,9 +14,12 @@ export function renderMessages(messages) {
     if (!container) return;
 
     if (messages.length === 0) {
+        container.classList.add('empty');
         container.innerHTML = `<div class="no-messages">Начните переписку!</div>`;
         return;
     }
+
+    container.classList.remove('empty');
 
     container.innerHTML = messages.map(msg => {
         const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
@@ -43,6 +46,7 @@ export function appendMessage(msg) {
     const container = document.getElementById('messagesContainer');
     if (!container) return;
 
+    container.classList.remove('empty');
     container.querySelector('.no-messages')?.remove();
 
     if (container.querySelector(`[data-id="${msg.id}"]`)) return;

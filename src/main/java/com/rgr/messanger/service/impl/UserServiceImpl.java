@@ -4,6 +4,7 @@ import com.rgr.messanger.entity.user.Role;
 import com.rgr.messanger.entity.user.User;
 import com.rgr.messanger.exception.ResourceNotFoundException;
 import com.rgr.messanger.repository.UserRepo;
+import com.rgr.messanger.service.ChatService;
 import com.rgr.messanger.service.EmailVerificationService;
 import com.rgr.messanger.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +19,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    private final UserRepo userRepo;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepo                 userRepo;
+    private final PasswordEncoder          passwordEncoder;
     private final EmailVerificationService emailVerificationService;
+    private final ChatService              chatService;
 
     @Override
     @Transactional(readOnly = true)
@@ -29,8 +31,8 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
     }
 
-    @Transactional(readOnly = true)
     @Override
+    @Transactional(readOnly = true)
     public User getByUsername(String username) {
         return userRepo.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
@@ -48,10 +50,17 @@ public class UserServiceImpl implements UserService {
         userRepo.updateEmailNotifications(userId, emailNotifications);
     }
 
-    @Transactional
     @Override
+    @Transactional
     public void updateOnlineStatus(Long userId, boolean online) {
         userRepo.updateOnlineStatus(userId, online);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public User getByEmail(String email) {
+        return userRepo.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
     }
 
     @Override
@@ -83,12 +92,17 @@ public class UserServiceImpl implements UserService {
         if (!user.getPassword().equals(user.getPasswordConfirmation())) {
             throw new IllegalStateException("Пароль и подтверждение пароля не совпадают");
         }
+
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setEmailVerified(false);
         userRepo.create(user);
+
         Set<Role> roles = Set.of(Role.ROLE_USER);
         user.setRoles(roles);
         roles.forEach(role -> userRepo.insertUserRole(user.getId(), role));
+
+        chatService.createNotesChat(user.getId());
+
         emailVerificationService.sendVerification(user.getEmail(), user.getUsername());
 
         return user;
@@ -97,7 +111,6 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public boolean isMessageOwner(Long userId, Long messageId) {
-
         return userRepo.isMessageOwner(userId, messageId);
     }
 

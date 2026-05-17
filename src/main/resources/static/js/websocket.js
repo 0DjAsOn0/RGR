@@ -1,4 +1,3 @@
-import { formatStatus } from './utils.js';
 import { state }        from './app.js';
 
 let stompClient        = null;
@@ -12,6 +11,11 @@ export function connectWebSocket(onMessage) {
     stompClient.connect({},
         () => {
             console.log('WebSocket подключён ✅');
+
+            if (state.currentUser?.id) {
+                subscribeToUserNotifications(onMessage);
+            }
+
             if (state.currentChatId) {
                 subscribeToChat(state.currentChatId, onMessage);
             }
@@ -58,6 +62,17 @@ export function sendReadReceipt(messageId, chatId) {
         {},
         JSON.stringify({ messageId, chatId })
     );
+}
+
+function subscribeToUserNotifications(onMessage) {
+    if (!stompClient?.connected) return;
+
+    stompClient.subscribe(
+        `/topic/user/${state.currentUser.id}`,
+        onMessage
+    );
+
+    console.log('Подписан на уведомления пользователя:', state.currentUser.id);
 }
 
 export function isConnected() {

@@ -55,7 +55,9 @@ public class ChatRepoImpl implements ChatRepo {
                 ), 0)
             GROUP BY c.id, c.type, c.name, c.avatar_url, c.updated_at,
                      m.text, m.send_date, u.id, u.username, u.avatar_url, u.status
-            ORDER BY COALESCE(m.send_date, c.created_at) DESC
+            ORDER BY
+                CASE WHEN c.name = 'Заметки' THEN 0 ELSE 1 END,
+                COALESCE(m.send_date, c.created_at) DESC
             """;
 
     @Override
@@ -80,8 +82,27 @@ public class ChatRepoImpl implements ChatRepo {
                     }
                     return chat;
                 },
-                userId, userId, userId, userId  // 4 параметра для ?
+                userId, userId, userId, userId
         );
+    }
+
+    // ========================
+    // ЗАМЕТКИ
+    // ========================
+    private static final String CREATE_NOTES_CHAT = """
+            WITH new_chat AS (
+                INSERT INTO chats (type, name, creator_id)
+                VALUES ('private', 'Заметки', ?)
+                RETURNING id
+            )
+            INSERT INTO chat_members (chat_id, user_id, role)
+            SELECT id, ?, 'owner'
+            FROM new_chat
+            """;
+
+    @Override
+    public void createNotesChat(Long userId) {
+        jdbcTemplate.update(CREATE_NOTES_CHAT, userId, userId);
     }
 
     // ========================
@@ -93,6 +114,7 @@ public class ChatRepoImpl implements ChatRepo {
             JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = ?
             JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id = ?
             WHERE c.type = 'private'
+              AND cm1.user_id != cm2.user_id
             LIMIT 1
             """;
 
@@ -108,6 +130,22 @@ public class ChatRepoImpl implements ChatRepo {
                 userId1, userId2
         );
         return result.stream().findFirst();
+    }
+
+
+
+    private static final String GET_CHAT_MEMBER_IDS = """
+        SELECT user_id FROM chat_members
+        WHERE chat_id = ?
+        """;
+
+    @Override
+    public List<Long> getChatMemberIds(Long chatId) {
+        return jdbcTemplate.query(
+                GET_CHAT_MEMBER_IDS,
+                (rs, rowNum) -> rs.getLong("user_id"),
+                chatId
+        );
     }
 
     // ========================
@@ -151,10 +189,10 @@ public class ChatRepoImpl implements ChatRepo {
     // НАЙТИ ЧАТ ПО ID
     // ========================
     private static final String FIND_BY_ID = """
-            SELECT id        as chat_id,
-                   type      as chat_type,
-                   name      as chat_name,
-                   avatar_url as chat_avatar_url
+            SELECT id          as chat_id,
+                   type        as chat_type,
+                   name        as chat_name,
+                   avatar_url  as chat_avatar_url
             FROM chats
             WHERE id = ?
             """;

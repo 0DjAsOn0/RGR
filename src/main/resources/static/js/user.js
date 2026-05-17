@@ -306,7 +306,7 @@ export function showEditForm() {
     if (!content) return;
 
     const user      = state.currentUser;
-    const avatarUrl = user?.avatarUrl ?? '/img/avatar1.JPG';
+    const avatarUrl = user?.avatarUrl ?? '/avatars/avatar.png';
 
     content.innerHTML = `
         <div class="header-profile">
@@ -449,7 +449,7 @@ export function viewMyProfile() {
     const user               = state.currentUser;
     const username           = user?.username           ?? 'Загрузка...';
     const email              = user?.email              ?? 'Загрузка...';
-    const avatarUrl          = user?.avatarUrl          ?? './img/avatar1.JPG';
+    const avatarUrl          = user?.avatarUrl          ?? '/avatars/avatar.png';
     const status             = user?.status             ?? 'оффлайн';
     const emailNotifications = user?.emailNotifications ?? true;
 

@@ -11,21 +11,35 @@ spring:
       continue-on-error: false
       data-locations: classpath:db/schema.sql
 
+#  mail:
+#    username: ${MAIL_USERNAME}
+#    password: ${MAIL_PASSWORD}
+#    host: smtp.gmail.com
+#    port: 587
+#    properties:
+#      mail:
+#        smtp:
+#          auth: true
+#          starttls:
+#            enable: true
+#            required: true
+#          connectiontimeout: 5000
+#          timeout: 5000
+#          writetimeout: 5000
   mail:
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    host: smtp.gmail.com
-    port: 587
+    host: localhost
+    port: 1025
+    from: noreply@localhost
+    username: ""
+    password: ""
     properties:
       mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+        SMTP:
+          auth: false
+          STARTTLS:
+            enable: false
+
+
 security:
   jwt:
     secret: 0720640ed6ea9a449aa75e54a5c0b788a92fae60a2eb006ff1e8e15de7d968a9=

@@ -11,7 +11,7 @@
     <div class="logo">sicelica</div>
     <form id="registrationForm">
         <input id="username" class="input" type="text"
-               placeholder="логин" required/>
+               placeholder="имя пользователя" required/>
         <input id="password" class="input" type="password"
                placeholder="пароль" required/>
         <input id="passwordConfirmation" class="input" type="password"
@@ -73,7 +73,20 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    showError(data.error || 'Ошибка регистрации');
+
+                    if (data.error) {
+
+                        showError(data.error);
+                    } else {
+
+                        const validationMessages = Object.values(data);
+                        if (validationMessages.length > 0) {
+                            showError(validationMessages.join('\n'));
+                        } else {
+                            showError('Ошибка регистрации');
+                        }
+                    }
+
                     btn.disabled = false;
                     btn.textContent = 'Зарегистрироваться';
                     return;
@@ -101,7 +114,12 @@
             errorDiv.className = 'error-message';
             document.getElementById('registrationForm').prepend(errorDiv);
         }
-        errorDiv.textContent = message;
+
+        errorDiv.innerHTML = message
+            .split('\n')
+            .map(msg => `<div>• ${msg}</div>`)
+            .join('');
+
         errorDiv.style.display = 'block';
     }
 </script>

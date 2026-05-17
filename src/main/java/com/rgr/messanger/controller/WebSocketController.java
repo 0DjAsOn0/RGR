@@ -4,6 +4,7 @@ import com.rgr.messanger.entity.message.Message;
 import com.rgr.messanger.entity.message.Status;
 import com.rgr.messanger.entity.user.User;
 import com.rgr.messanger.repository.MessageRepo;
+import com.rgr.messanger.service.ChatService;
 import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.message.MessageResponse;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,6 +28,7 @@ public class WebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
     private final MessageRepo messageRepo;
     private final UserService userService;
+    private final ChatService chatService;
 
     // ========================
     // ОТМЕТИТЬ КАК ПРОЧИТАННОЕ
@@ -68,14 +71,14 @@ public class WebSocketController {
     ) {
         log.info("WS message, chatId: {}, from: {}", chatId, principal.getName());
 
+        Message message = null;
         try {
             User sender = userService.getByUsername(principal.getName());
 
             String content = body.get("content");
             if (content == null || content.isBlank()) return;
 
-            // Сохраняем сообщение
-            Message message = new Message();
+            message = new Message();
             message.setChatId(chatId);
             message.setSenderId(sender.getId());
             message.setText(content);
@@ -83,18 +86,30 @@ public class WebSocketController {
             message.setStatus(Status.SENDING);
             messageRepo.create(message);
 
-            // Сразу ставим SENT
             messageRepo.updateStatus(message.getId(), Status.SENT);
             message.setStatus(Status.SENT);
 
-            // одна отправка — без дубликата
             MessageResponse response = MessageResponse.from(message);
+
             messagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
+
+            List<Long> memberIds = chatService.getChatMemberIds(chatId);
+            for (Long memberId : memberIds) {
+                if (!memberId.equals(sender.getId())) {
+                    messagingTemplate.convertAndSend(
+                            "/topic/user/" + memberId, response
+                    );
+                }
+            }
 
             log.info("WS message sent, id: {}", message.getId());
 
         } catch (Exception e) {
             log.error("WS error: {}", e.getMessage(), e);
+
+            if (message.getId() != null) {
+                messageRepo.updateStatus(message.getId(), Status.NOT_SENDING);
+            }
         }
     }
 }

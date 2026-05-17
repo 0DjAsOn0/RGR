@@ -19,7 +19,7 @@ public class EmailServiceImpl implements EmailService {
     @Value("${app.base-url}")
     private String baseUrl;
 
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.from}")
     private String fromEmail;
 
     @Async

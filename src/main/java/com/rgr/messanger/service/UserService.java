@@ -19,6 +19,8 @@ public interface UserService {
     @Transactional
     void updateOnlineStatus(Long userId, boolean online);
 
+    User getByEmail(String email);
+
     User update(User user);
 
     User create(User user);

@@ -2,27 +2,37 @@ package com.rgr.messanger.web.dto.user;
 
 import com.rgr.messanger.web.dto.validation.OnCreate;
 import com.rgr.messanger.web.dto.validation.OnUpdate;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 @Data
 public class UserDto {
 
-    @NotNull(message = "ID не может быть пустым", groups = OnUpdate.class)
+    @NotNull(message = "ID не может быть пустым",
+            groups = OnUpdate.class)
     private Long id;
 
-    @NotNull(message = "Никнейм не может быть пустым", groups = {OnUpdate.class, OnCreate.class})
-    @Size(min = 1, max = 255, message = "Имя должно быть от 2 до 255 символов")
+    @NotBlank(message = "Никнейм не может быть пустым",
+            groups = {OnCreate.class, OnUpdate.class})
+    @Size(min = 3, max = 30,
+            message = "Никнейм должен быть от 3 до 30 символов",
+            groups = {OnCreate.class, OnUpdate.class})
     private String username;
 
-    @NotNull(message = "Email не может быть пустым", groups = {OnUpdate.class, OnCreate.class})
+    @NotBlank(message = "Email не может быть пустым",
+            groups = {OnCreate.class, OnUpdate.class})
+    @Email(message = "Некорректный формат email",
+            groups = {OnCreate.class, OnUpdate.class})
     private String email;
 
-    @NotNull(message = "пароль не может быть пустым", groups = {OnUpdate.class, OnCreate.class})
+    @NotBlank(message = "Пароль не может быть пустым",
+            groups = OnCreate.class)
+    @Size(min = 6, max = 255,
+            message = "Пароль должен быть минимум 6 символов",
+            groups = OnCreate.class)
     private String password;
 
-    @NotNull(message = "пароль не может быть пустым", groups = {OnUpdate.class, OnCreate.class})
+    @NotBlank(message = "Подтверждение пароля не может быть пустым",
+            groups = OnCreate.class)
     private String passwordConfirmation;
-
 }

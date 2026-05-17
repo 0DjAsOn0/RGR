@@ -2,7 +2,7 @@ package com.rgr.messanger.controller;
 
 import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.entity.user.User;
-import com.rgr.messanger.repository.ChatRepo;
+import com.rgr.messanger.service.ChatService;
 import com.rgr.messanger.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,17 +20,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatController {
 
-    private final ChatRepo chatRepo;
+    private final ChatService chatService;  // ✅
     private final UserService userService;
 
-    // Получить список чатов текущего пользователя
     @GetMapping
     @ResponseBody
     public ResponseEntity<List<ChatResponse>> getMyChats(Principal principal) {
         if (principal == null) return ResponseEntity.status(401).build();
 
         User me = userService.getByUsername(principal.getName());
-        List<Chat> chats = chatRepo.findByUserId(me.getId());
+        List<Chat> chats = chatService.findByUserId(me.getId()); // ✅
 
         List<ChatResponse> response = chats.stream()
                 .map(ChatResponse::from)
@@ -39,18 +38,17 @@ public class ChatController {
         return ResponseEntity.ok(response);
     }
 
-    // DTO
     public record ChatResponse(
-            Long id,
+            Long   id,
             String type,
             String name,
             String avatarUrl,
             String lastMessage,
             String lastMessageTime,
-            Long interlocutorId,
+            Long   interlocutorId,
             String interlocutorName,
             String interlocutorAvatar,
-            int unreadCount
+            int    unreadCount
     ) {
         public static ChatResponse from(Chat chat) {
             return new ChatResponse(
