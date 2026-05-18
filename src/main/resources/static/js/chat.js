@@ -2,11 +2,50 @@ import { fetchMessages }   from './api.js';
 import { escapeHtml, formatStatus } from './utils.js';
 import { subscribeToChat, sendReadReceipt } from './websocket.js';
 import { state }           from './app.js';
+import { renderAttachments } from './attachments.js';
 
 export async function loadMessages(chatId) {
     const messages = await fetchMessages(chatId);
     renderMessages(messages);
     startReadObserver();
+}
+
+function buildMessage(msg) {
+    const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
+
+    // Рендер вложений
+    const attachmentsHtml = renderAttachments(msg.attachments);
+
+    //Текст — только если есть
+    const textHtml = msg.text
+        ? `<span class="message-text">${escapeHtml(msg.text)}</span>`
+        : '';
+
+    return `
+        <div class="message ${isOwn ? 'message-out' : 'message-in'}" 
+             data-id="${msg.id}">
+            <div class="message-bubble">
+
+                ${!isOwn && msg.senderName
+        ? `<span class="message-sender">${escapeHtml(msg.senderName)}</span>`
+        : ''
+    }
+
+                ${textHtml}
+
+                ${attachmentsHtml}
+
+                <span class="message-meta">
+                    <span class="message-time-small">${msg.time ?? ''}</span>
+                    ${isOwn
+        ? `<span class="message-status">${formatStatus(msg.status)}</span>`
+        : ''
+    }
+                </span>
+
+            </div>
+        </div>
+    `;
 }
 
 export function renderMessages(messages) {
@@ -20,25 +59,7 @@ export function renderMessages(messages) {
     }
 
     container.classList.remove('empty');
-
-    container.innerHTML = messages.map(msg => {
-        const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
-        return `
-            <div class="message ${isOwn ? 'message-out' : 'message-in'}"
-                 data-id="${msg.id}">
-                <div class="message-bubble">
-                    <p class="message-text">${escapeHtml(msg.text)}</p>
-                    <div class="message-meta">
-                        <span class="message-time-small">${msg.time ?? ''}</span>
-                        ${isOwn
-            ? `<span class="message-status">${formatStatus(msg.status)}</span>`
-            : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-
+    container.innerHTML = messages.map(buildMessage).join('');
     container.scrollTop = container.scrollHeight;
 }
 
@@ -51,24 +72,7 @@ export function appendMessage(msg) {
 
     if (container.querySelector(`[data-id="${msg.id}"]`)) return;
 
-    const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
-
-    const div = document.createElement('div');
-    div.className  = `message ${isOwn ? 'message-out' : 'message-in'}`;
-    div.dataset.id = msg.id;
-    div.innerHTML  = `
-        <div class="message-bubble">
-            <p class="message-text">${escapeHtml(msg.text)}</p>
-            <div class="message-meta">
-                <span class="message-time-small">${msg.time ?? ''}</span>
-                ${isOwn
-        ? `<span class="message-status">${formatStatus(msg.status)}</span>`
-        : ''}
-            </div>
-        </div>
-    `;
-
-    container.appendChild(div);
+    container.insertAdjacentHTML('beforeend', buildMessage(msg));
     container.scrollTop = container.scrollHeight;
 }
 
@@ -77,7 +81,7 @@ export function updateMessageStatus(messageId, status) {
     if (!msgEl) return;
 
     const statusEl = msgEl.querySelector('.message-status');
-    if (statusEl) statusEl.textContent = formatStatus(status);
+    if (statusEl) statusEl.innerHTML = formatStatus(status);
 }
 
 let readObserver = null;

@@ -14,6 +14,7 @@ public class Chat {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String lastMessage;
+    private String lastMessageType;
     private LocalDateTime lastMessageTime;
     private String interlocutorName;
     private String interlocutorAvatar;

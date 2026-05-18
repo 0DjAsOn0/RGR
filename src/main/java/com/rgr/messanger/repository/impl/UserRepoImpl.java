@@ -22,6 +22,9 @@ public class UserRepoImpl implements UserRepo {
 
     private final JdbcTemplate jdbcTemplate;
 
+    // ========================
+    // НАЙТИ ПО ID
+    // ========================
     private static final String FIND_BY_ID = """
             SELECT u.id                  as user_id,
                    u.username            as user_username,
@@ -50,6 +53,9 @@ public class UserRepoImpl implements UserRepo {
         return Optional.ofNullable(user);
     }
 
+    // ========================
+    // НАЙТИ ПО USERNAME
+    // ========================
     private static final String FIND_BY_USERNAME = """
             SELECT u.id                  as user_id,
                    u.username            as user_username,
@@ -78,32 +84,9 @@ public class UserRepoImpl implements UserRepo {
         return Optional.ofNullable(user);
     }
 
-
-
-    private static final String UPDATE_USERNAME = """
-        UPDATE users
-        SET username   = ?,
-            updated_at = NOW()
-        WHERE id = ?
-        """;
-
-    @Override
-    public void updateUsername(Long id, String username) {
-        jdbcTemplate.update(UPDATE_USERNAME, username, id);
-    }
-
-    private static final String UPDATE_AVATAR = """
-        UPDATE users
-        SET avatar_url = ?,
-            updated_at = NOW()
-        WHERE id = ?
-        """;
-
-    @Override
-    public void updateAvatar(Long id, String avatarUrl) {
-        jdbcTemplate.update(UPDATE_AVATAR, avatarUrl, id);
-    }
-
+    // ========================
+    // НАЙТИ ПО EMAIL
+    // ========================
     private static final String FIND_BY_EMAIL = """
             SELECT u.id                  as user_id,
                    u.username            as user_username,
@@ -112,12 +95,14 @@ public class UserRepoImpl implements UserRepo {
                    u.avatar_url          as user_avatar_url,
                    u.status              as user_status,
                    u.last_seen           as user_last_seen,
+                   u.created_at          as user_created_at,
+                   u.updated_at          as user_updated_at,
                    u.email_verified      as user_email_verified,
                    u.email_notifications as user_email_notifications,
                    ur.role               as user_role
             FROM users u
             LEFT JOIN user_roles ur ON ur.user_id = u.id
-            WHERE u.email = ?
+            WHERE LOWER(u.email) = LOWER(?)
             """;
 
     @Override
@@ -130,6 +115,9 @@ public class UserRepoImpl implements UserRepo {
         return Optional.ofNullable(user);
     }
 
+    // ========================
+    // ПОИСК ПО USERNAME
+    // ========================
     private static final String SEARCH_BY_USERNAME = """
             SELECT u.id                  as user_id,
                    u.username            as user_username,
@@ -138,6 +126,8 @@ public class UserRepoImpl implements UserRepo {
                    u.avatar_url          as user_avatar_url,
                    u.status              as user_status,
                    u.last_seen           as user_last_seen,
+                   u.created_at          as user_created_at,
+                   u.updated_at          as user_updated_at,
                    u.email_verified      as user_email_verified,
                    u.email_notifications as user_email_notifications,
                    ur.role               as user_role
@@ -164,6 +154,54 @@ public class UserRepoImpl implements UserRepo {
         );
     }
 
+    // ========================
+    // ОБНОВИТЬ USERNAME
+    // ========================
+    private static final String UPDATE_USERNAME = """
+            UPDATE users
+            SET username   = ?,
+                updated_at = NOW()
+            WHERE id = ?
+            """;
+
+    @Override
+    public void updateUsername(Long id, String username) {
+        jdbcTemplate.update(UPDATE_USERNAME, username, id);
+    }
+
+    // ========================
+    // ОБНОВИТЬ АВАТАР
+    // ========================
+    private static final String UPDATE_AVATAR = """
+            UPDATE users
+            SET avatar_url = ?,
+                updated_at = NOW()
+            WHERE id = ?
+            """;
+
+    @Override
+    public void updateAvatar(Long id, String avatarUrl) {
+        jdbcTemplate.update(UPDATE_AVATAR, avatarUrl, id);
+    }
+
+    // ========================
+    // ОБНОВИТЬ ПАРОЛЬ
+    // ========================
+    private static final String UPDATE_PASSWORD = """
+            UPDATE users
+            SET password   = ?,
+                updated_at = NOW()
+            WHERE id = ?
+            """;
+
+    @Override
+    public void updatePassword(Long userId, String encodedPassword) {
+        jdbcTemplate.update(UPDATE_PASSWORD, encodedPassword, userId);
+    }
+
+    // ========================
+    // ОБНОВИТЬ СТАТУС ОНЛАЙН
+    // ========================
     private static final String STATUS = """
             UPDATE users
             SET status     = ?,
@@ -177,6 +215,9 @@ public class UserRepoImpl implements UserRepo {
         jdbcTemplate.update(STATUS, online ? "online" : "offline", userId);
     }
 
+    // ========================
+    // ПОДТВЕРДИТЬ EMAIL
+    // ========================
     private static final String VERIFY_EMAIL = """
             UPDATE users
             SET email_verified = TRUE,
@@ -189,6 +230,9 @@ public class UserRepoImpl implements UserRepo {
         jdbcTemplate.update(VERIFY_EMAIL, userId);
     }
 
+    // ========================
+    // ОБНОВИТЬ EMAIL УВЕДОМЛЕНИЯ
+    // ========================
     private static final String UPDATE_EMAIL_NOTIFICATIONS = """
             UPDATE users
             SET email_notifications = ?,
@@ -201,6 +245,9 @@ public class UserRepoImpl implements UserRepo {
         jdbcTemplate.update(UPDATE_EMAIL_NOTIFICATIONS, emailNotifications, userId);
     }
 
+    // ========================
+    // ОБНОВИТЬ ПОЛЬЗОВАТЕЛЯ
+    // ========================
     private static final String UPDATE = """
             UPDATE users
             SET username   = ?,
@@ -228,6 +275,9 @@ public class UserRepoImpl implements UserRepo {
         );
     }
 
+    // ========================
+    // СОЗДАТЬ ПОЛЬЗОВАТЕЛЯ
+    // ========================
     private static final String CREATE = """
             INSERT INTO users (username, email, password, avatar_url, status, last_seen)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -235,7 +285,6 @@ public class UserRepoImpl implements UserRepo {
 
     @Override
     public void create(User user) {
-        // KeyHolder — получаем сгенерированный id
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
         jdbcTemplate.update(connection -> {
@@ -253,12 +302,14 @@ public class UserRepoImpl implements UserRepo {
             return stmt;
         }, keyHolder);
 
-        // Достаём id из KeyHolder
         if (keyHolder.getKeys() != null) {
             user.setId(((Number) keyHolder.getKeys().get("id")).longValue());
         }
     }
 
+    // ========================
+    // НАЗНАЧИТЬ РОЛЬ
+    // ========================
     private static final String INSERT_USER_ROLE = """
             INSERT INTO user_roles (user_id, role)
             VALUES (?, ?)
@@ -270,6 +321,9 @@ public class UserRepoImpl implements UserRepo {
         jdbcTemplate.update(INSERT_USER_ROLE, userId, role.name());
     }
 
+    // ========================
+    // ПРОВЕРИТЬ ВЛАДЕЛЬЦА СООБЩЕНИЯ
+    // ========================
     private static final String IS_MESSAGE_OWNER = """
             SELECT COUNT(1)
             FROM messages
@@ -286,6 +340,9 @@ public class UserRepoImpl implements UserRepo {
         return count != null && count > 0;
     }
 
+    // ========================
+    // УДАЛИТЬ ПОЛЬЗОВАТЕЛЯ
+    // ========================
     private static final String DELETE = """
             DELETE FROM users WHERE id = ?
             """;

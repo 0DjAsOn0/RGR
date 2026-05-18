@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <link rel="stylesheet" th:href="@{/styles/style.css}"/>
+    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <title>Сброс пароля</title>
+</head>
+<body>
+<div class="login-box">
+    <div class="logo">sicelica</div>
+
+    <!-- ШАГ 1: Ввод email -->
+    <div id="stepEmail">
+        <p class="step-hint">Введите email, указанный при регистрации</p>
+        <form id="emailForm">
+            <input id="email" class="input" type="text"
+                   placeholder="введите почту" required/>
+
+            <button class="btn" id="sendCodeBtn" type="submit">
+                Отправить код
+            </button>
+
+            <div class="bottom-links">
+                <a th:href="@{/login}">Войти</a>
+                <a th:href="@{/register}">Регистрация</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- ШАГ 2: Ввод кода -->
+    <div id="stepCode" style="display: none;">
+        <p class="step-hint">Введите код из письма</p>
+        <form id="codeForm">
+            <input id="code" class="input" type="text"
+                   placeholder="код подтверждения" required/>
+
+            <button class="btn" id="verifyCodeBtn" type="submit">
+                Подтвердить
+            </button>
+
+            <div class="bottom-links">
+                <a href="#" id="resendCode">Отправить повторно</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- ШАГ 3: Новый пароль -->
+    <div id="stepNewPassword" style="display: none;">
+        <p class="step-hint">Введите новый пароль</p>
+        <form id="newPasswordForm">
+            <input id="newPassword" class="input" type="password"
+                   placeholder="новый пароль" required/>
+            <input id="newPasswordConfirmation" class="input" type="password"
+                   placeholder="повторите пароль" required/>
+
+            <button class="btn" id="resetBtn" type="submit">
+                Сменить пароль
+            </button>
+        </form>
+    </div>
+
+</div>
+
+<script>
+    let userEmail = '';
+
+    // ========================
+    // ШАГ 1 — отправка кода на email
+    // ========================
+    document.getElementById('emailForm')
+        .addEventListener('submit', async function (e) {
+            e.preventDefault();
+            clearError();
+
+            const email = document.getElementById('email').value.trim();
+
+            if (!email) {
+                showError('Введите email');
+                return;
+            }
+
+            if (!isValidEmail(email)) {
+                showError('Введите корректный email');
+                return;
+            }
+
+            const btn = document.getElementById('sendCodeBtn');
+            btn.disabled = true;
+            btn.textContent = 'Отправляем...';
+
+            try {
+                const response = await fetch('/api/v1/auth/forgot-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || 'Ошибка отправки кода');
+                    btn.disabled = false;
+                    btn.textContent = 'Отправить код';
+                    return;
+                }
+
+                userEmail = email;
+                switchStep('stepCode');
+
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showError('Ошибка сервера. Попробуйте позже.');
+                btn.disabled = false;
+                btn.textContent = 'Отправить код';
+            }
+        });
+
+    // ========================
+    // ШАГ 2 — проверка кода
+    // ========================
+    document.getElementById('codeForm')
+        .addEventListener('submit', async function (e) {
+            e.preventDefault();
+            clearError();
+
+            const code = document.getElementById('code').value.trim();
+
+            if (!code) {
+                showError('Введите код из письма');
+                return;
+            }
+
+            const btn = document.getElementById('verifyCodeBtn');
+            btn.disabled = true;
+            btn.textContent = 'Проверяем...';
+
+            try {
+                const response = await fetch('/api/v1/auth/verify-reset-code', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email: userEmail, code })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || 'Неверный или истёкший код');
+                    btn.disabled = false;
+                    btn.textContent = 'Подтвердить';
+                    return;
+                }
+
+                switchStep('stepNewPassword');
+
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showError('Ошибка сервера. Попробуйте позже.');
+                btn.disabled = false;
+                btn.textContent = 'Подтвердить';
+            }
+        });
+
+    // ========================
+    // ШАГ 3 — новый пароль
+    // ========================
+    document.getElementById('newPasswordForm')
+        .addEventListener('submit', async function (e) {
+            e.preventDefault();
+            clearError();
+
+            const newPassword = document.getElementById('newPassword').value;
+            const newPasswordConfirmation = document.getElementById('newPasswordConfirmation').value;
+
+            if (!newPassword || !newPasswordConfirmation) {
+                showError('Заполните все поля');
+                return;
+            }
+
+            if (newPassword !== newPasswordConfirmation) {
+                showError('Пароли не совпадают');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showError('Пароль должен быть не менее 6 символов');
+                return;
+            }
+
+            const btn = document.getElementById('resetBtn');
+            btn.disabled = true;
+            btn.textContent = 'Сохраняем...';
+
+            try {
+                const response = await fetch('/api/v1/auth/reset-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        email: userEmail,
+                        newPassword,
+                        newPasswordConfirmation
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || 'Ошибка смены пароля');
+                    btn.disabled = false;
+                    btn.textContent = 'Сменить пароль';
+                    return;
+                }
+
+                window.location.href = '/login?passwordReset=true';
+
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showError('Ошибка сервера. Попробуйте позже.');
+                btn.disabled = false;
+                btn.textContent = 'Сменить пароль';
+            }
+        });
+
+    // ========================
+    // Повторная отправка кода
+    // ========================
+    document.getElementById('resendCode')
+        .addEventListener('click', async function (e) {
+            e.preventDefault();
+            clearError();
+
+            this.textContent = 'Отправляем...';
+            this.style.pointerEvents = 'none';
+
+            try {
+                const response = await fetch('/api/v1/auth/forgot-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email: userEmail })
+                });
+
+                if (response.ok) {
+                    showSuccess('Код отправлен повторно');
+                } else {
+                    showError('Не удалось отправить код');
+                }
+            } catch (error) {
+                showError('Ошибка сервера');
+            }
+
+            // Блокируем кнопку на 30 секунд
+            let seconds = 30;
+            const interval = setInterval(() => {
+                this.textContent = `Повторно через ${seconds}с`;
+                seconds--;
+                if (seconds < 0) {
+                    clearInterval(interval);
+                    this.textContent = 'Отправить повторно';
+                    this.style.pointerEvents = 'auto';
+                }
+            }, 1000);
+        });
+
+    // ========================
+    // Вспомогательные функции
+    // ========================
+    function switchStep(stepId) {
+        clearError();
+        ['stepEmail', 'stepCode', 'stepNewPassword'].forEach(id => {
+            document.getElementById(id).style.display = 'none';
+        });
+        document.getElementById(stepId).style.display = 'block';
+    }
+
+    function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function showError(message) {
+        let errorDiv = getOrCreateMessageDiv('errorMessage', 'error-message');
+        errorDiv.innerHTML = message
+            .split('\n')
+            .map(msg => `<div>• ${msg}</div>`)
+            .join('');
+        errorDiv.style.display = 'block';
+    }
+
+    function showSuccess(message) {
+        let successDiv = getOrCreateMessageDiv('successMessage', 'success-message');
+        successDiv.textContent = message;
+        successDiv.style.display = 'block';
+        setTimeout(() => successDiv.style.display = 'none', 3000);
+    }
+
+    function clearError() {
+        const err = document.getElementById('errorMessage');
+        if (err) err.style.display = 'none';
+        const suc = document.getElementById('successMessage');
+        if (suc) suc.style.display = 'none';
+    }
+
+    function getOrCreateMessageDiv(id, className) {
+        let div = document.getElementById(id);
+        if (!div) {
+            div = document.createElement('div');
+            div.id = id;
+            div.className = className;
+            document.querySelector('.login-box').prepend(div);
+        }
+        return div;
+    }
+</script>
+</body>
+</html>

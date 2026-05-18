@@ -248,7 +248,7 @@ html, body{
     border-bottom: 1px solid #768c9e;
 }
 
-.settings-button:hover, .folder-button:hover, .profile-button:hover{
+.settings-button:hover, .chat-button:hover, .profile-button:hover{
     cursor: pointer;
 }
 
@@ -375,20 +375,6 @@ html, body{
     text-overflow: ellipsis;
     display: block;
     transition: color 0.2s;
-}
-
-.profilePage {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 40px;
 }
 
 .profilePage.show {
@@ -818,14 +804,6 @@ html, body{
     align-self: flex-end;
 }
 
-.message-bubble {
-    padding: 6px 10px 4px 10px;
-    border-radius: 12px;
-    position: relative;
-    word-break: break-word;
-    display: flex;
-    max-width: 100%;
-}
 
 .message-preview{
     display: flex;
@@ -843,16 +821,6 @@ html, body{
     font-size: 15px;
 }
 
-.message-meta {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    align-self: flex-end;
-    margin-left: auto;
-    padding-left: 8px;
-    margin-bottom: -2px;
-    white-space: nowrap;
-}
 
 /* Входящее сообщение */
 .message-in .message-bubble {
@@ -866,12 +834,67 @@ html, body{
     border-bottom-right-radius: 4px;
 }
 
+.message-bubble {
+    padding: 6px 10px 4px 10px;
+    border-radius: 12px;
+    word-break: break-word;
+    display: flex;
+    max-width: 100%;
+}
+
+.message-sender {
+    font-size: 12px;
+    font-weight: bold;
+    color: #4fc3f7;
+    display: block;
+    margin-bottom: 2px;
+}
+
 .message-text {
     color: #e8f1f8;
     font-size: 14px;
     line-height: 1.5;
     margin: 0;
-    padding-right: 0;
+    display: flex;
+}
+
+.message-meta {
+    float: right;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 8px;
+    margin-top: 4px;
+    margin-bottom: -2px;
+}
+
+.message-time-small {
+    color: #7d9bb5;
+    font-size: 11px;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.message-out .message-time-small {
+    color: #8ab4d4;
+}
+
+.status-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
+
+.message-bubble::after {
+    content: '';
+    display: table;
+    clear: both;
+}
+
+.message-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .message-time-small {
@@ -962,4 +985,824 @@ html, body{
 .user-status-badge.online {
     color: #4CAF50;
     font-size: 12px;
+}
+
+
+/* ===== МОДАЛЬНОЕ ОКНО ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: #1f2e3d;
+    border-radius: 12px;
+    width: 400px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-bottom: 1px solid #2b5278;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    color: white;
+}
+
+.modal-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #2b5278;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Результаты поиска в модалке */
+.group-search-results {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.group-search-results li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.group-search-results li:hover {
+    background: #2b5278;
+}
+
+/* Выбранные участники */
+.selected-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.member-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #2b5278;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 13px;
+}
+
+.member-chip button {
+    background: none;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+}
+
+.member-chip button:hover {
+    color: white;
+}
+
+/* ===== ПРОФИЛЬ ===== */
+.profilePage {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 40px;
+}
+
+.profilePage.show {
+    display: flex;
+}
+
+.profilePage-content {
+    background-color: #17212b;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalAppear 0.3s ease;
+}
+
+@keyframes modalAppear {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== ШАПКА ПРОФИЛЯ ===== */
+.header-profile {
+    background-color: #232e3c;
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 15px;
+    border-radius: 10px 10px 0 0;
+}
+
+.main-info-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    padding: 20px 0 10px 0;
+}
+
+.avatar-profile {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #2b5278;
+}
+
+.nickname {
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.time-activity {
+    font-size: 13px;
+    color: #7d9bb5;
+}
+
+.edit {
+    font-size: 13px;
+    color: #4fc3f7;
+    cursor: pointer;
+    white-space: nowrap;
+    padding-top: 4px;
+}
+
+.edit:hover {
+    text-decoration: underline;
+}
+
+.close {
+    font-size: 20px;
+    color: #7d9bb5;
+    cursor: pointer;
+    padding-top: 2px;
+}
+
+.close:hover {
+    color: #fff;
+}
+
+/* ===== КОНТАКТЫ ===== */
+.profile-contacts {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 2px;
+    border-bottom: 1px solid #232e3c;
+}
+
+.contacts-link {
+    font-size: 15px;
+    color: #4fc3f7;
+}
+
+.contacts-text {
+    font-size: 12px;
+    color: #7d9bb5;
+    margin-bottom: 8px;
+}
+
+/* ===== EMAIL УВЕДОМЛЕНИЯ ===== */
+.email-refuse {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+}
+
+.refuse-agree {
+    font-size: 14px;
+    color: #e8f1f8;
+}
+
+/* ===== ФОРМА РЕДАКТИРОВАНИЯ ===== */
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 14px;
+}
+
+/* ===== АВАТАР В ФОРМЕ ===== */
+.avatar-upload {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    cursor: pointer;
+    overflow: hidden;
+    margin: 0 auto;
+    border: 3px solid #2b5278;
+}
+
+.avatar-edit-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+}
+
+.avatar-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 10px;
+    text-align: center;
+    padding: 6px 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.avatar-upload:hover .avatar-overlay {
+    opacity: 1;
+}
+
+/* ===== ПОЛЯ ВВОДА ===== */
+.edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.edit-label {
+    font-size: 12px;
+    color: #7d9bb5;
+}
+
+.edit-input {
+    background-color: #242f3d;
+    border: 1px solid #2b5278;
+    border-radius: 8px;
+    color: #e8f1f8;
+    padding: 10px 12px;
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.2s;
+}
+
+.edit-input:focus {
+    border-color: #4fc3f7;
+}
+
+.edit-divider {
+    text-align: center;
+    font-size: 13px;
+    color: #7d9bb5;
+    position: relative;
+    margin: 4px 0;
+}
+
+.edit-divider::before,
+.edit-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 35%;
+    height: 1px;
+    background: #2b5278;
+}
+
+.edit-divider::before { left: 0; }
+.edit-divider::after  { right: 0; }
+
+/* ===== ПАРОЛЬ ===== */
+.password-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-input-wrap .edit-input {
+    padding-right: 40px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: #7d9bb5;
+    padding: 0;
+}
+
+.toggle-password:hover {
+    color: #fff;
+}
+
+/* ===== СИЛА ПАРОЛЯ ===== */
+.password-strength {
+    margin-top: 4px;
+}
+
+.strength-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.strength-segment {
+    height: 4px;
+    flex: 1;
+    border-radius: 2px;
+    background: #2b5278;
+}
+
+.strength-label {
+    font-size: 12px;
+}
+
+/* ===== ОШИБКИ И УСПЕХ ===== */
+.edit-error {
+    background: rgba(229, 57, 53, 0.15);
+    border: 1px solid #e53935;
+    border-radius: 8px;
+    color: #e57373;
+    font-size: 13px;
+    padding: 10px 12px;
+}
+
+.edit-success {
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid #4caf50;
+    border-radius: 8px;
+    color: #81c784;
+    font-size: 13px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+/* ===== КНОПКА СОХРАНИТЬ ===== */
+.edit-save-btn {
+    background: #2b5278;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 15px;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s;
+    margin-top: 4px;
+}
+
+.edit-save-btn:hover {
+    background: #3a6a9a;
+}
+
+.edit-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.step-hint {
+    color: #fff;
+    font-size: 13px;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.success-message {
+    color: #4caf50;
+    font-size: 13px;
+    text-align: center;
+    padding: 8px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* ========================
+   ПАНЕЛЬ ПРИКРЕПЛЕНИЯ
+======================== */
+.attach-wrapper {
+    position: relative;
+}
+
+.attach-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.attach-btn:hover {
+    cursor: pointer;
+}
+
+.attach-btn img {
+    width: 22px;
+    height: 22px;
+    filter: invert(0.5);
+}
+
+.attach-menu {
+    position: absolute;
+    bottom: 50px;
+    left: 0;
+
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 180px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 100;
+}
+
+.attach-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+
+    font-size: 14px;
+    transition: background 0.15s;
+}
+
+.attach-option:hover {
+
+}
+
+.attach-option img {
+    width: 20px;
+    height: 20px;
+    filter: invert(0.6);
+}
+
+/* ========================
+   ПРЕДПРОСМОТР ФАЙЛОВ
+======================== */
+.attachments-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.preview-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+
+}
+
+.preview-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    display: block;
+    border-radius: 8px;
+}
+
+.preview-file-icon {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    gap: 4px;
+}
+
+.file-ext {
+    font-size: 11px;
+    font-weight: bold;
+
+    background: rgba(100, 100, 255, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.file-name {
+    font-size: 10px;
+
+    text-align: center;
+    word-break: break-all;
+}
+
+.file-size {
+    font-size: 10px;
+
+}
+
+.preview-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* ========================
+   ВЛОЖЕНИЯ В СООБЩЕНИИ
+======================== */
+.msg-attachment {
+    margin-top: 6px;
+}
+
+.msg-image {
+    max-width: 320px;
+    max-height: 320px;
+    border-radius: 10px;
+    object-fit: cover;
+    cursor: pointer;
+    display: block;
+    transition: opacity 0.2s;
+}
+
+.msg-image:hover {
+    opacity: 0.9;
+}
+
+.msg-video {
+    max-width: 320px;
+    border-radius: 10px;
+    display: block;
+}
+
+.msg-audio {
+    width: 280px;
+    height: 36px;
+}
+
+.msg-file {
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: inline-block;
+    max-width: 300px;
+}
+
+.file-download {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+}
+
+.file-download-icon {
+    font-size: 24px;
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.file-download-name {
+    font-size: 13px;
+    font-weight: 500;
+    word-break: break-all;
+}
+
+.file-download-size {
+    font-size: 11px;
+}
+
+/* ========================
+   DRAG & DROP
+======================== */
+.message-input-area.drag-over {
+
+    background: rgba(100, 100, 255, 0.05);
+}
+
+/* ========================
+   LIGHTBOX
+======================== */
+.lightbox-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.lightbox-img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+/* Текст внутри пузыря */
+.message-text {
+    padding: 8px 12px;
+}
+
+/* ========================
+   ФОТО
+   ======================== */
+.msg-attachment {
+    display: block;
+    overflow: hidden;
+}
+
+.msg-image {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    max-height: 400px;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: 0; /* скругление у пузыря */
+}
+
+/* Если есть текст ДО картинки — отступ */
+.message-text + .msg-attachment .msg-image {
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ========================
+   ВИДЕО
+   ======================== */
+.msg-video {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: 0;
+}
+
+/* ========================
+   АУДИО
+   ======================== */
+.msg-audio {
+    width: 100%;
+    max-width: 300px;
+    margin: 6px 12px;
+}
+
+/* ========================
+   ФАЙЛ
+   ======================== */
+.msg-file {
+    padding: 8px 12px;
+}
+
+.file-download {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.file-download-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.file-download-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.file-download-size {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+/* ========================
+   ПУЗЫРЬ — скругление
+   ======================== */
+.message-out .message-bubble {
+    border-radius: 16px 16px 4px 16px;
+    background: #2b5278;
+}
+
+.message-in .message-bubble {
+    border-radius: 16px 16px 16px 4px;
+    background: #212121;
+}
+
+/* Первый элемент в пузыре — скругление сверху */
+.message-bubble > *:first-child img,
+.message-bubble > *:first-child video {
+    border-radius: 16px 16px 0 0;
+}
+
+/* Последний элемент — скругление снизу */
+.message-bubble > *:last-child img,
+.message-bubble > *:last-child video {
+    border-radius: 0 0 4px 16px;
+}
+
+.message-out .message-bubble > *:last-child img,
+.message-out .message-bubble > *:last-child video {
+    border-radius: 0 0 4px 4px;
 }

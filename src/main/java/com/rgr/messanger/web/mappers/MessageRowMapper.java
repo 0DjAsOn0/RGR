@@ -21,6 +21,9 @@ public class MessageRowMapper {
         message.setId(rs.getLong("message_id"));
         message.setChatId(rs.getLong("message_chat_id"));
         message.setSenderId(rs.getLong("message_sender_id"));
+        try {
+            message.setSenderName(rs.getString("sender_name"));
+        } catch (Exception ignored) {}
         message.setText(rs.getString("message_text"));
         message.setType(rs.getString("message_type"));
         message.setEdited(rs.getBoolean("message_is_edited"));

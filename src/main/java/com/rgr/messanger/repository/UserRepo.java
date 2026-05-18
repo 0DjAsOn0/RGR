@@ -37,4 +37,6 @@ public interface UserRepo {
     boolean isMessageOwner(Long userId, Long messageId);
 
     void delete(Long id);
+
+    void updatePassword(Long userId, String encodedPassword);
 }

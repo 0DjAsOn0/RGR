@@ -17,6 +17,9 @@ public class MessageServiceImpl implements MessageService {
 
     private final MessageRepo messageRepo;
 
+    // ========================
+    // ПОЛУЧИТЬ ПО ID
+    // ========================
     @Override
     @Transactional(readOnly = true)
     public Message getById(Long id) {
@@ -24,31 +27,73 @@ public class MessageServiceImpl implements MessageService {
                 .orElseThrow(() -> new ResourceNotFoundException("Message not found"));
     }
 
+    // ========================
+    // ПОЛУЧИТЬ ВСЕ СООБЩЕНИЯ ПОЛЬЗОВАТЕЛЯ
+    // ========================
     @Override
     @Transactional(readOnly = true)
     public List<Message> getAllByUserId(Long userId) {
         return messageRepo.findAllByUserId(userId);
     }
 
+    // ========================
+    // ПОЛУЧИТЬ СООБЩЕНИЯ ЧАТА
+    // ========================
+    @Override
+    @Transactional(readOnly = true)
+    public List<Message> getByChatId(Long chatId) {
+        return messageRepo.findByChatId(chatId);
+    }
+
+    // ========================
+    // СОЗДАТЬ СООБЩЕНИЕ
+    // ========================
+    @Override
+    @Transactional
+    public Message create(Message message, Long userId) {
+        // не перезаписываем статус если он уже задан
+        if (message.getStatus() == null) {
+            message.setStatus(Status.NOT_SENDING);
+        }
+        messageRepo.create(message);
+        messageRepo.assignToUserById(userId, message.getId());
+        return message;
+    }
+
+    // ========================
+    // ОБНОВИТЬ СООБЩЕНИЕ
+    // ========================
     @Override
     @Transactional
     public Message update(Message message) {
-        if(message.getStatus() == null){
+        if (message.getStatus() == null) {
             message.setStatus(Status.NOT_SENDING);
         }
         messageRepo.update(message);
         return message;
     }
 
-    @Transactional
+    // ========================
+    // ОБНОВИТЬ СТАТУС СООБЩЕНИЯ
+    // ========================
     @Override
-    public Message create(Message message, Long userId) {
-        message.setStatus(Status.NOT_SENDING);
-        messageRepo.create(message);
-        messageRepo.assignToUserById(message.getId(), userId);
-        return message;
+    @Transactional
+    public void updateStatus(Long messageId, Status status) {
+        messageRepo.updateStatus(messageId, status);
     }
 
+    // ========================
+    // ОТМЕТИТЬ ЧАТ КАК ПРОЧИТАННЫЙ
+    // ========================
+    @Override
+    @Transactional
+    public void markChatAsRead(Long chatId, Long userId) {
+        messageRepo.markAsRead(chatId, userId);
+    }
+
+    // ========================
+    // УДАЛИТЬ СООБЩЕНИЕ
+    // ========================
     @Override
     @Transactional
     public void delete(Long id) {

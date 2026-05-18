@@ -10,8 +10,31 @@ export async function loadChats() {
     try {
         const chats = await fetchChats();
         renderChatList(chats);
+        return chats;
     } catch (error) {
         console.error('Ошибка загрузки чатов:', error);
+        return [];
+    }
+}
+
+// определяем превью последнего сообщения
+function getLastMessagePreview(chat) {
+    const text = chat.lastMessage;
+    const type = chat.lastMessageType;
+
+    if (text && text.trim()) return escapeHtml(text);
+
+    // Нет текста — смотрим на тип
+    switch (type) {
+        case 'image':
+        case 'images': return '🖼 Фото';
+        case 'video':  return '🎥 Видео';
+        case 'audio':  return '🎵 Аудио';
+        case 'file':   return '📎 Файл';
+        default:
+            // Если тип неизвестен но нет текста — проверяем attachments
+            if (chat.hasAttachment) return '📎 Вложение';
+            return 'Нет сообщений';
     }
 }
 
@@ -27,26 +50,35 @@ export function renderChatList(chats) {
     container.innerHTML = chats.map(chat => {
 
         const isNotes = chat.name === 'Заметки' && !chat.interlocutorId;
+        const isGroup = chat.type === 'group' && chat.name !== 'Заметки';
 
-        const name   = isNotes
+        const name = isNotes
             ? 'Заметки'
-            : escapeHtml(chat.interlocutorName ?? chat.name ?? 'Чат');
+            : isGroup
+                ? escapeHtml(chat.name)
+                : escapeHtml(chat.interlocutorName ?? chat.name ?? 'Чат');
 
-        const avatar = isNotes
+        const avatar = (isNotes || isGroup)
             ? null
             : (chat.interlocutorAvatar ?? '/avatars/avatar.png');
+
+        // превью последнего сообщения
+        const preview = getLastMessagePreview(chat);
 
         return `
             <li class="card"
                 data-chat-id="${chat.id}"
                 data-user-id="${chat.interlocutorId ?? ''}"
                 data-user-name="${name}"
-                data-user-avatar="${avatar ?? ''}">
+                data-user-avatar="${avatar ?? ''}"
+                data-chat-type="${chat.type ?? 'private'}">
                 <div class="chat-card">
                     <div class="avatar">
                         ${isNotes
             ? `<div class="notes-avatar">📝</div>`
-            : `<img class="avatar-img" src="${avatar}" alt="">`
+            : isGroup
+                ? `<div class="notes-avatar">👥</div>`
+                : `<img class="avatar-img" src="${avatar}" alt="">`
         }
                     </div>
                     <div class="card-content">
@@ -57,12 +89,11 @@ export function renderChatList(chats) {
                             </time>
                         </div>
                         <div class="message-preview">
-                            <span class="user-message">
-                                ${escapeHtml(chat.lastMessage ?? 'Нет сообщений')}
-                            </span>
+                            <span class="user-message">${preview}</span>
                             ${chat.unreadCount > 0
             ? `<span class="unread-badge">${chat.unreadCount}</span>`
-            : ''}
+            : ''
+        }
                         </div>
                     </div>
                 </div>
@@ -70,7 +101,6 @@ export function renderChatList(chats) {
         `;
     }).join('');
 }
-
 
 // ========================
 // ПОИСК
@@ -118,8 +148,7 @@ export function renderSearchResults(users) {
     const searchResults = document.getElementById('searchResults');
 
     if (users.length === 0) {
-        searchResults.innerHTML = `
-            <li class="no-results">Пользователи не найдены</li>`;
+        searchResults.innerHTML = `<li class="no-results">Пользователи не найдены</li>`;
         return;
     }
 
@@ -136,17 +165,12 @@ export function renderSearchResults(users) {
                 </div>
                 <div class="card-content">
                     <div class="name-time">
-                        <span class="user-name">
-                            ${escapeHtml(user.username)}
-                        </span>
-                        <span class="user-status-badge
-                            ${user.status === 'online' ? 'online' : ''}">
+                        <span class="user-name">${escapeHtml(user.username)}</span>
+                        <span class="user-status-badge ${user.status === 'online' ? 'online' : ''}">
                             ${user.status === 'online' ? 'в сети' : ''}
                         </span>
                     </div>
-                    <span class="user-message">
-                        Нажмите чтобы написать
-                    </span>
+                    <span class="user-message">Нажмите чтобы написать</span>
                 </div>
             </div>
         </li>
@@ -178,8 +202,8 @@ export function clearSearch() {
     const searchResults  = document.getElementById('searchResults');
     const chatsContainer = document.getElementById('chatsContainer');
 
-    if (searchInput)    searchInput.value        = '';
-    if (searchResults)  {
+    if (searchInput)   searchInput.value         = '';
+    if (searchResults) {
         searchResults.style.display = 'none';
         searchResults.innerHTML     = '';
     }

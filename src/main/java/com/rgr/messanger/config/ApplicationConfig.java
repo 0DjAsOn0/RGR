@@ -93,6 +93,8 @@ public class ApplicationConfig {
                                 .permitAll()
                                 .requestMatchers("/ws/**")
                                 .permitAll()
+                                .requestMatchers("/uploads/**").permitAll()
+                                .requestMatchers("/api/v1/attachments/**").authenticated()
                                 .anyRequest().authenticated()
                 )
 

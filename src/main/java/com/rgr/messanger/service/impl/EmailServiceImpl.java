@@ -47,4 +47,55 @@ public class EmailServiceImpl implements EmailService {
         mailSender.send(message);
         log.info("Email sent successfully to: {}", toEmail);
     }
+
+//    ========================
+//    ОТПРАВКА СООБЩЕНИЯ НА ПОЧТУ КОГДА 10 НЕПРОЧИТАНЫХ СООБЩЕНИЙ В ЧАте
+//    ===========================
+
+    @Async
+    @Override
+    public void sendUnreadNotification(String toEmail, String username,
+                                       int unreadCount, String chatName) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(toEmail);
+            message.setSubject("У вас " + unreadCount + " непрочитанных сообщений");
+            message.setText("""
+            Привет, %s!
+            
+            У вас %d непрочитанных сообщений в чате "%s".
+            
+            Войдите в мессенджер чтобы прочитать их:
+            %s
+            
+            Если вы не хотите получать уведомления — отключите их в настройках профиля.
+            """.formatted(username, unreadCount, chatName, baseUrl));
+
+            mailSender.send(message);
+            log.info("Уведомление отправлено на: {}", toEmail);
+        } catch (Exception e) {
+            log.error("Ошибка отправки уведомления: {}", e.getMessage());
+        }
+    }
+
+
+    @Override
+    public void sendPasswordResetCode(String to, String username, String code) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Сброс пароля — sicelica");
+        message.setText("""
+            Привет, %s!
+            
+            Код для сброса пароля:
+            
+               %s
+            
+            Код действует 15 минут.
+            Если вы не запрашивали сброс — проигнорируйте письмо.
+            """.formatted(username, code));
+        mailSender.send(message);
+    }
+
 }

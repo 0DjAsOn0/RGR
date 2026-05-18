@@ -1,24 +1,32 @@
-import { state }        from './app.js';
+import { state } from './app.js';
 
-let stompClient        = null;
-let currentSubscription = null;
+let stompClient = null;
+
+//Map — храним все подписки одновременно
+const subscriptions    = new Map();
+const pendingChatIds   = new Set();
+let   globalOnMessage  = null;
 
 export function connectWebSocket(onMessage) {
+    globalOnMessage = onMessage;
+
     const socket = new SockJS('/ws');
     stompClient = Stomp.over(socket);
     stompClient.debug = null;
 
     stompClient.connect({},
         () => {
-            console.log('WebSocket подключён ✅');
+            console.log('WebSocket подключён');
 
             if (state.currentUser?.id) {
                 subscribeToUserNotifications(onMessage);
             }
 
-            if (state.currentChatId) {
-                subscribeToChat(state.currentChatId, onMessage);
-            }
+            // Подписываемся на все чаты из очереди
+            pendingChatIds.forEach(chatId => {
+                doSubscribe(chatId, onMessage);
+            });
+            pendingChatIds.clear();
         },
         (error) => {
             console.error('WebSocket ошибка:', error);
@@ -27,20 +35,25 @@ export function connectWebSocket(onMessage) {
     );
 }
 
-export function subscribeToChat(chatId, onMessage) {
-    if (!stompClient?.connected) return;
+function doSubscribe(chatId, onMessage) {
+    const key = String(chatId);
+    if (subscriptions.has(key)) return; // уже подписан
 
-    if (currentSubscription) {
-        currentSubscription.unsubscribe();
-        currentSubscription = null;
-    }
-
-    currentSubscription = stompClient.subscribe(
+    const sub = stompClient.subscribe(
         `/topic/chat/${chatId}`,
-        onMessage
+        onMessage ?? globalOnMessage
     );
-
+    subscriptions.set(key, sub);
     console.log('Подписан на чат:', chatId);
+}
+
+export function subscribeToChat(chatId, onMessage) {
+    if (!stompClient?.connected) {
+        // WS ещё не подключён — добавляем в очередь
+        pendingChatIds.add(String(chatId));
+        return;
+    }
+    doSubscribe(chatId, onMessage ?? globalOnMessage);
 }
 
 export function sendWsMessage(chatId, content) {
@@ -71,7 +84,6 @@ function subscribeToUserNotifications(onMessage) {
         `/topic/user/${state.currentUser.id}`,
         onMessage
     );
-
     console.log('Подписан на уведомления пользователя:', state.currentUser.id);
 }
 

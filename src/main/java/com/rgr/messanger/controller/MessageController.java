@@ -4,8 +4,9 @@ import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.entity.message.Message;
 import com.rgr.messanger.entity.message.Status;
 import com.rgr.messanger.entity.user.User;
+import com.rgr.messanger.repository.AttachmentRepo;
 import com.rgr.messanger.repository.ChatRepo;
-import com.rgr.messanger.repository.MessageRepo;
+import com.rgr.messanger.service.MessageService;
 import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.message.MessageResponse;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +27,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class MessageController {
 
-    private final MessageRepo messageRepo;
+    private final MessageService messageService;
     private final ChatRepo chatRepo;
     private final UserService userService;
+    private final AttachmentRepo attachmentRepo;
     private final SimpMessagingTemplate messagingTemplate;
 
     // ========================
@@ -36,34 +38,40 @@ public class MessageController {
     // ========================
     @GetMapping("/chat/{chatId}")
     @ResponseBody
-    public ResponseEntity<List<MessageResponse>> getMessages(
+    public ResponseEntity<?> getMessages(
             @PathVariable Long chatId,
             Principal principal
     ) {
-        log.info("getMessages called, chatId: {}, principal: {}",
-                chatId, principal != null ? principal.getName() : "NULL");
+        log.info("getMessages called, chatId: {}, principal: {}", chatId, principal.getName());
 
-        if (principal == null) return ResponseEntity.status(401).build();
+        User user = userService.getByUsername(principal.getName());
+        log.info("User found: {}", user.getUsername());
 
-        try {
-            User me = userService.getByUsername(principal.getName());
-            log.info("User found: {}", me.getUsername());
+        List<Message> messages = messageService.getByChatId(chatId);
+        log.info("Messages found: {}", messages.size());
 
-            List<Message> messages = messageRepo.findByChatId(chatId);
-            log.info("Messages found: {}", messages.size());
+        List<Map<String, Object>> result = messages.stream().map(msg -> {
+            Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("id",          msg.getId());
+            map.put("chatId",      msg.getChatId());
+            map.put("senderId",    msg.getSenderId());
+            map.put("senderName",  msg.getSenderName());
+            map.put("replyToId",   msg.getReplyToId());
+            map.put("type",        msg.getType());
+            map.put("text",        msg.getText());
+            map.put("isEdited",    msg.isEdited());
+            map.put("isDeleted",   msg.isDeleted());
+            map.put("sendDate",    msg.getSendDate());
+            map.put("time",        msg.getSendDate() != null
+                    ? msg.getSendDate().toLocalTime()
+                      .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                    : "");
+            map.put("status",      msg.getStatus());
+            map.put("attachments", attachmentRepo.findByMessageId(msg.getId()));
+            return map;
+        }).toList();
 
-            messageRepo.markAsRead(chatId, me.getId());
-
-            List<MessageResponse> response = messages.stream()
-                    .map(MessageResponse::from)
-                    .toList();
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Error getting messages: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
-        }
+        return ResponseEntity.ok(result);
     }
 
     // ========================
@@ -92,15 +100,13 @@ public class MessageController {
             message.setText(content);
             message.setType("text");
             message.setStatus(Status.SENDING);
-            messageRepo.create(message);
 
-            // Сразу ставим SENT
-            messageRepo.updateStatus(message.getId(), Status.SENT);
+            messageService.create(message, me.getId());
+            messageService.updateStatus(message.getId(), Status.SENT);
             message.setStatus(Status.SENT);
 
             MessageResponse response = MessageResponse.from(message);
 
-            // Рассылаем через WS
             messagingTemplate.convertAndSend(
                     "/topic/chat/" + chatId,
                     response
@@ -126,7 +132,7 @@ public class MessageController {
         if (principal == null) return ResponseEntity.status(401).build();
 
         try {
-            messageRepo.updateStatus(messageId, Status.READ);
+            messageService.updateStatus(messageId, Status.READ);
             return ResponseEntity.ok().build();
 
         } catch (Exception e) {
@@ -162,6 +168,28 @@ public class MessageController {
 
         } catch (Exception e) {
             log.error("Error creating chat: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    // ========================
+    // ОТМЕТИТЬ ВСЕ СООБЩЕНИЯ ЧАТА КАК ПРОЧИТАННЫЕ
+    // ========================
+    @PostMapping("/chat/{chatId}/read")
+    @ResponseBody
+    public ResponseEntity<Void> markChatAsRead(
+            @PathVariable Long chatId,
+            Principal principal
+    ) {
+        if (principal == null) return ResponseEntity.status(401).build();
+
+        try {
+            User me = userService.getByUsername(principal.getName());
+            messageService.markChatAsRead(chatId, me.getId());
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+            log.error("Error marking chat as read: {}", e.getMessage(), e);
             return ResponseEntity.status(500).build();
         }
     }

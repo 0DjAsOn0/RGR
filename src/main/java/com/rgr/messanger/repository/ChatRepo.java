@@ -17,4 +17,16 @@ public interface ChatRepo {
     Long createPrivateChat(Long creatorId);         // создать чат
     void addMember(Long chatId, Long userId);       // добавить участника
     Optional<Chat> findById(Long chatId);
+
+    // ========================
+    // ГРУППОВЫЕ ЧАТЫ
+    // ========================
+
+    Long createGroupChat(String name, Long creatorId);
+    void updateChat(Long chatId, String name, String avatarUrl);
+    void deleteChat(Long chatId);
+    void removeMember(Long chatId, Long userId);
+    String getMemberRole(Long chatId, Long userId);
+
+    void addMemberWithRole(Long chatId, Long userId, String role);
 }

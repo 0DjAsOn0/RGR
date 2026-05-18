@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -55,22 +56,24 @@ public class MessageRepoImpl implements MessageRepo {
     // НАЙТИ ВСЕ СООБЩЕНИЯ ЧАТА
     // ========================
     private static final String FIND_BY_CHAT_ID = """
-            SELECT m.id          as message_id,
-                   m.chat_id     as message_chat_id,
-                   m.sender_id   as message_sender_id,
-                   m.reply_to_id as message_reply_to_id,
-                   m.type        as message_type,
-                   m.text        as message_text,
-                   m.is_edited   as message_is_edited,
-                   m.is_deleted  as message_is_deleted,
-                   m.send_date   as message_send_date,
-                   m.edited_at   as message_edited_at,
-                   m.status      as message_status
-            FROM messages m
-            WHERE m.chat_id = ?
-              AND m.is_deleted = FALSE
-            ORDER BY m.send_date ASC
-            """;
+        SELECT m.id          as message_id,
+               m.chat_id     as message_chat_id,
+               m.sender_id   as message_sender_id,
+               m.reply_to_id as message_reply_to_id,
+               m.type        as message_type,
+               m.text        as message_text,
+               m.is_edited   as message_is_edited,
+               m.is_deleted  as message_is_deleted,
+               m.send_date   as message_send_date,
+               m.edited_at   as message_edited_at,
+               m.status      as message_status,
+               u.username    as sender_name
+        FROM messages m
+        LEFT JOIN users u ON u.id = m.sender_id
+        WHERE m.chat_id = ?
+          AND m.is_deleted = FALSE
+        ORDER BY m.send_date ASC
+        """;
 
     @Override
     public List<Message> findByChatId(Long chatId) {
@@ -237,5 +240,38 @@ public class MessageRepoImpl implements MessageRepo {
     @Override
     public void assignToUserById(Long userId, Long messageId) {
         jdbcTemplate.update(ASSIGN_TO_USER_BY_ID, userId, messageId);
+    }
+
+    // ========================
+    // сообщение на почту если 10 непрочитаных сообщений
+    // ========================
+
+    private static final String COUNT_UNREAD_PER_CHAT = """
+        SELECT 
+            c.id          as chat_id,
+            c.name        as chat_name,
+            COUNT(m.id)   as unread_count,
+            u.id          as user_id,
+            u.email       as user_email,
+            u.username    as user_username,
+            u.email_notifications as email_notifications
+        FROM messages m
+        JOIN chats c ON c.id = m.chat_id
+        JOIN chat_members cm ON cm.chat_id = c.id
+        JOIN users u ON u.id = cm.user_id
+        WHERE m.sender_id != cm.user_id
+          AND m.is_deleted = FALSE
+          AND m.id > COALESCE((
+              SELECT last_read_msg FROM message_reads
+              WHERE chat_id = c.id AND user_id = cm.user_id
+          ), 0)
+          AND u.email_notifications = TRUE
+        GROUP BY c.id, c.name, u.id, u.email, u.username, u.email_notifications
+        HAVING COUNT(m.id) >= 10
+        """;
+
+    @Override
+    public List<Map<String, Object>> findChatsWithUnreadThreshold() {
+        return jdbcTemplate.queryForList(COUNT_UNREAD_PER_CHAT);
     }
 }

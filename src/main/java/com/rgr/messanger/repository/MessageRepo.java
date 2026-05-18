@@ -4,6 +4,7 @@ import com.rgr.messanger.entity.message.Message;
 import com.rgr.messanger.entity.message.Status;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface MessageRepo {
@@ -16,4 +17,6 @@ public interface MessageRepo {
     void delete(Long id);
     void assignToUserById(Long userId, Long messageId);
     void markAsRead(Long chatId, Long userId);     // ← новый
+
+    List<Map<String, Object>> findChatsWithUnreadThreshold();
 }

@@ -9,6 +9,7 @@ public class Message {
     private Long id;
     private Long chatId;
     private Long senderId;
+    private String senderName;
     private Long replyToId;
     private String type;
     private String text;

@@ -10,8 +10,15 @@ spring:
       mode: always
       continue-on-error: false
       data-locations: classpath:db/schema.sql
-
-#  mail:
+  web:
+    resources:
+      static-locations: classpath:/static/
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 100MB
+  #  mail:
 #    username: ${MAIL_USERNAME}
 #    password: ${MAIL_PASSWORD}
 #    host: smtp.gmail.com
@@ -47,3 +54,6 @@ security:
     refresh: 2592000000
 app:
   base-url: http://localhost:8080
+  upload:
+    dir: uploads
+    max-size: 52428800
