@@ -1,32 +1,38 @@
 package com.rgr.messanger.repository;
 
 import com.rgr.messanger.entity.chat.Chat;
+import com.rgr.messanger.web.dto.chat.ChatDto;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface ChatRepo {
-    List<Chat> findByUserId(Long userId);           // все чаты пользователя
 
-    void createNotesChat(Long userId);
+    List<ChatDto> findByUserId(Long userId);
 
-    Optional<Chat> findPrivateChat(Long userId1, Long userId2); // приватный чат между двумя
+    Optional<Chat> findById(Long chatId);
+
+    Optional<Chat> findPrivateChat(Long userId1, Long userId2);
+
+    Long createPrivateChat(Long creatorId);
+
+    Long createNotesChat(Long userId);
+
+    Long createGroupChat(String name, Long creatorId);
+
+    void updateChat(Long chatId, String name, String avatarUrl);
+
+    void deleteChat(Long chatId);
 
     List<Long> getChatMemberIds(Long chatId);
 
-    Long createPrivateChat(Long creatorId);         // создать чат
-    void addMember(Long chatId, Long userId);       // добавить участника
-    Optional<Chat> findById(Long chatId);
+    boolean isMember(Long chatId, Long userId);
 
-    // ========================
-    // ГРУППОВЫЕ ЧАТЫ
-    // ========================
-
-    Long createGroupChat(String name, Long creatorId);
-    void updateChat(Long chatId, String name, String avatarUrl);
-    void deleteChat(Long chatId);
-    void removeMember(Long chatId, Long userId);
-    String getMemberRole(Long chatId, Long userId);
+    void addMember(Long chatId, Long userId);
 
     void addMemberWithRole(Long chatId, Long userId, String role);
+
+    void removeMember(Long chatId, Long userId);
+
+    Optional<String> getMemberRole(Long chatId, Long userId);
 }

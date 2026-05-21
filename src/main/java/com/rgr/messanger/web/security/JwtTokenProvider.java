@@ -7,11 +7,12 @@ import com.rgr.messanger.exception.EmailVerificationException;
 import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.auth.JwtResponse;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,55 +23,44 @@ import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-@RequiredArgsConstructor
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class JwtTokenProvider {
 
-    private final JwtProperties jwtProperties;
+    private static final String CLAIM_ID    = "id";
+    private static final String CLAIM_ROLES = "roles";
+    private static final String CLAIM_TYPE  = "type";
+    private static final String TYPE_EMAIL_VERIFICATION = "email-verification";
 
+    private final JwtProperties jwtProperties;
     private final UserDetailsService userDetailsService;
     private final UserService userService;
+
     private SecretKey key;
 
     @PostConstruct
-    public void init(){
+    public void init() {
         this.key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
     }
 
+    // ========================
+    // СОЗДАНИЕ ТОКЕНОВ
+    // ========================
 
     public String createAccessToken(Long userId, String username, Set<Role> roles) {
-        Claims claims = Jwts.claims().subject(username)
-                .add("id", userId)
-                .add("roles", resolveRoles(roles))
-                .build();
-        Instant validity = Instant.now()
-                .plus(jwtProperties.getAccess(), ChronoUnit.HOURS);
-        return Jwts.builder()
-                .claims(claims)
-                .expiration(Date.from(validity))
-                .signWith(key)
-                .compact();
-    }
-
-    private Object resolveRoles(Set<Role> roles) {
-        return roles.stream()
-                .map(Enum::name)
-                .collect(Collectors.toList());
-    }
-
-    public String createRefreshToken(
-            final Long userId,
-            final String username
-    ) {
         Claims claims = Jwts.claims()
                 .subject(username)
-                .add("id", userId)
+                .add(CLAIM_ID, userId)
+                .add(CLAIM_ROLES, resolveRoles(roles))
                 .build();
+
         Instant validity = Instant.now()
-                .plus(jwtProperties.getRefresh(), ChronoUnit.DAYS);
+                .plus(jwtProperties.getAccess(), ChronoUnit.HOURS);
+
         return Jwts.builder()
                 .claims(claims)
                 .expiration(Date.from(validity))
@@ -78,15 +68,50 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    public JwtResponse refreshUserTokens(
-            final String refreshToken
-    ) {
-        JwtResponse jwtResponse = new JwtResponse();
+    public String createRefreshToken(Long userId, String username) {
+        Claims claims = Jwts.claims()
+                .subject(username)
+                .add(CLAIM_ID, userId)
+                .build();
+
+        Instant validity = Instant.now()
+                .plus(jwtProperties.getRefresh(), ChronoUnit.DAYS);
+
+        return Jwts.builder()
+                .claims(claims)
+                .expiration(Date.from(validity))
+                .signWith(key)
+                .compact();
+    }
+
+    public String generateVerificationToken(String email) {
+        Claims claims = Jwts.claims()
+                .subject(email)
+                .add(CLAIM_TYPE, TYPE_EMAIL_VERIFICATION)
+                .build();
+
+        Instant validity = Instant.now().plus(24, ChronoUnit.HOURS);
+
+        return Jwts.builder()
+                .claims(claims)
+                .expiration(Date.from(validity))
+                .signWith(key)
+                .compact();
+    }
+
+    // ========================
+    // REFRESH
+    // ========================
+
+    public JwtResponse refreshUserTokens(String refreshToken) {
         if (!isValid(refreshToken)) {
-            throw new AccessDeniedException();
+            throw new AccessDeniedException("Refresh-токен невалиден или просрочен");
         }
-        Long userId = Long.valueOf(getId(refreshToken));
-        User user = userService.getById(userId);
+
+        Long userId = getId(refreshToken);
+        User user   = userService.getById(userId);
+
+        JwtResponse jwtResponse = new JwtResponse();
         jwtResponse.setId(userId);
         jwtResponse.setUsername(user.getUsername());
         jwtResponse.setAccessToken(
@@ -98,38 +123,33 @@ public class JwtTokenProvider {
         return jwtResponse;
     }
 
-    public boolean isValid(
-            final String token
-    ) {
-        Jws<Claims> claims = Jwts
-                .parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token);
-        return claims.getPayload()
-                .getExpiration()
-                .after(new Date());
+    // ========================
+    // ВАЛИДАЦИЯ
+    // ========================
+
+    /**
+     * Безопасная проверка токена.
+     * Возвращает false при любой ошибке (подделка, истёкший, битый).
+     */
+    public boolean isValid(String token) {
+        if (token == null || token.isBlank()) return false;
+
+        try {
+            Claims claims = parseClaims(token);
+            return claims.getExpiration().after(new Date());
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("JWT validation failed: {}", e.getMessage());
+            return false;
+        }
     }
 
-    private String getId(
-            final String token
-    ) {
-        return Jwts
-                .parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .get("id", String.class);
-    }
+    // ========================
+    // ИЗВЛЕЧЕНИЕ ДАННЫХ
+    // ========================
 
-    public Authentication getAuthentication(
-            final String token
-    ) {
+    public Authentication getAuthentication(String token) {
         String username = getUsername(token);
-        UserDetails userDetails = userDetailsService.loadUserByUsername(
-                username
-        );
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
         return new UsernamePasswordAuthenticationToken(
                 userDetails,
                 "",
@@ -137,42 +157,42 @@ public class JwtTokenProvider {
         );
     }
 
-    private String getUsername(
-            final String token
-    ) {
-        return Jwts
-                .parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
-    }
-
-    public String generateVerificationToken(String email) {
-        Claims claims = Jwts.claims()
-                .subject(email)
-                .add("type", "email-verification")
-                .build();
-        Instant validity = Instant.now().plus(24, ChronoUnit.HOURS);
-        return Jwts.builder()
-                .claims(claims)
-                .expiration(Date.from(validity))
-                .signWith(key)
-                .compact();
-    }
-
     public String getEmailFromVerificationToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        Claims claims = parseClaims(token);
 
-        if (!"email-verification".equals(claims.get("type"))) {
+        if (!TYPE_EMAIL_VERIFICATION.equals(claims.get(CLAIM_TYPE))) {
             throw new EmailVerificationException("Неверный тип токена");
         }
 
         return claims.getSubject();
+    }
+
+    // ========================
+    // PRIVATE
+    // ========================
+
+    private Long getId(String token) {
+        Object id = parseClaims(token).get(CLAIM_ID);
+        if (id == null) return null;
+        // id может быть Integer / Long / String — берём через toString
+        return Long.valueOf(id.toString());
+    }
+
+    private String getUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    private List<String> resolveRoles(Set<Role> roles) {
+        return roles.stream()
+                .map(Enum::name)
+                .toList();
     }
 }

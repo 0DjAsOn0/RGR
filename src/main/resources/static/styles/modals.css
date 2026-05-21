@@ -1,0 +1,328 @@
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: var(--bg-panel-2);
+    border-radius: 12px;
+    width: 400px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-close {
+    color: #aaa;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    color: white;
+}
+
+.modal-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.group-search-results {
+    margin: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.group-search-results li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.group-search-results li:hover {
+    background: var(--bg-message-out);
+}
+
+.selected-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.member-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-message-out);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 13px;
+}
+
+.member-chip button {
+    color: #aaa;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+}
+
+.member-chip button:hover {
+    color: white;
+}
+
+.attach-wrapper {
+    position: relative;
+}
+
+.attach-menu {
+    position: absolute;
+    bottom: 50px;
+    left: 0;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 180px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+}
+
+.attach-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.15s;
+}
+
+.attach-option:hover {
+    background: var(--bg-hover);
+}
+
+.attach-option img {
+    width: 20px;
+    height: 20px;
+    filter: invert(0.6);
+}
+
+.attachments-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.preview-item {
+    position: relative;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.preview-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    display: block;
+    border-radius: var(--radius-sm);
+}
+
+.preview-file-icon {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    gap: 4px;
+}
+
+.file-ext {
+    font-size: 11px;
+    font-weight: bold;
+    background: rgba(100, 100, 255, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.file-name,
+.file-size {
+    font-size: 10px;
+    text-align: center;
+    word-break: break-all;
+}
+
+.preview-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.msg-attachment {
+    display: block;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.msg-image {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    max-height: 400px;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: 0;
+    transition: opacity 0.2s;
+}
+
+.msg-image:hover {
+    opacity: 0.9;
+}
+
+.message-text + .msg-attachment .msg-image {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.msg-video {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: 0;
+}
+
+.msg-audio {
+    width: 100%;
+    max-width: 300px;
+    margin: 6px 12px;
+}
+
+.msg-file {
+    padding: 8px 12px;
+    border-radius: 10px;
+    display: inline-block;
+    max-width: 300px;
+}
+
+.file-download {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.file-download-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.file-download-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.file-download-size {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+.lightbox-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.lightbox-img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .modal {
+        width: calc(100vw - 24px);
+    }
+}

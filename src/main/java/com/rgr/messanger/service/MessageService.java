@@ -2,7 +2,7 @@ package com.rgr.messanger.service;
 
 import com.rgr.messanger.entity.message.Message;
 import com.rgr.messanger.entity.message.Status;
-import org.springframework.transaction.annotation.Transactional;
+import com.rgr.messanger.web.dto.message.MessageResponse;
 
 import java.util.List;
 
@@ -12,23 +12,16 @@ public interface MessageService {
 
     List<Message> getAllByUserId(Long userId);
 
-    Message update(Message message);
+    List<Message> getByChatId(Long chatId);
+
+    List<MessageResponse> getResponsesByChatId(Long chatId);
 
     Message create(Message message, Long userId);
 
-    @Transactional(readOnly = true)
-    List<Message> getByChatId(Long chatId);
+    Message update(Message message);
 
-    // ========================
-    // ОБНОВИТЬ СТАТУС СООБЩЕНИЯ
-    // ========================
-    @Transactional
     void updateStatus(Long messageId, Status status);
 
-    // ========================
-    // ОТМЕТИТЬ ЧАТ КАК ПРОЧИТАННЫЙ
-    // ========================
-    @Transactional
     void markChatAsRead(Long chatId, Long userId);
 
     void delete(Long id);

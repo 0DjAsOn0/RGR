@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8"/>
-    <link rel="stylesheet" th:href="@{/styles/style.css}"/>
-    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="stylesheet" th:href="@{/styles/base.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/auth.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/chat.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
+    <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
     <title>Сброс пароля</title>
 </head>
 <body>
@@ -14,8 +19,12 @@
     <div id="stepEmail">
         <p class="step-hint">Введите email, указанный при регистрации</p>
         <form id="emailForm">
-            <input id="email" class="input" type="text"
-                   placeholder="введите почту" required/>
+            <input id="email"
+                   class="input"
+                   type="text"
+                   placeholder="введите почту"
+                   autocomplete="email"
+                   required/>
 
             <button class="btn" id="sendCodeBtn" type="submit">
                 Отправить код
@@ -32,8 +41,12 @@
     <div id="stepCode" style="display: none;">
         <p class="step-hint">Введите код из письма</p>
         <form id="codeForm">
-            <input id="code" class="input" type="text"
-                   placeholder="код подтверждения" required/>
+            <input id="code"
+                   class="input"
+                   type="text"
+                   placeholder="код подтверждения"
+                   autocomplete="one-time-code"
+                   required/>
 
             <button class="btn" id="verifyCodeBtn" type="submit">
                 Подтвердить
@@ -49,29 +62,35 @@
     <div id="stepNewPassword" style="display: none;">
         <p class="step-hint">Введите новый пароль</p>
         <form id="newPasswordForm">
-            <input id="newPassword" class="input" type="password"
-                   placeholder="новый пароль" required/>
-            <input id="newPasswordConfirmation" class="input" type="password"
-                   placeholder="повторите пароль" required/>
+            <input id="newPassword"
+                   class="input"
+                   type="password"
+                   placeholder="новый пароль"
+                   autocomplete="new-password"
+                   required/>
+
+            <input id="newPasswordConfirmation"
+                   class="input"
+                   type="password"
+                   placeholder="повторите пароль"
+                   autocomplete="new-password"
+                   required/>
 
             <button class="btn" id="resetBtn" type="submit">
                 Сменить пароль
             </button>
         </form>
     </div>
-
 </div>
 
 <script>
     let userEmail = '';
+    let resendCooldownTimer = null;
 
-    // ========================
-    // ШАГ 1 — отправка кода на email
-    // ========================
     document.getElementById('emailForm')
         .addEventListener('submit', async function (e) {
             e.preventDefault();
-            clearError();
+            clearMessages();
 
             const email = document.getElementById('email').value.trim();
 
@@ -86,43 +105,38 @@
             }
 
             const btn = document.getElementById('sendCodeBtn');
-            btn.disabled = true;
-            btn.textContent = 'Отправляем...';
+            setButtonState(btn, true, 'Отправляем...');
 
             try {
                 const response = await fetch('/api/v1/auth/forgot-password', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email })
                 });
 
-                const data = await response.json();
+                const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(data.error || 'Ошибка отправки кода');
-                    btn.disabled = false;
-                    btn.textContent = 'Отправить код';
+                    showError(collectErrorMessage(data) || 'Ошибка отправки кода');
                     return;
                 }
 
                 userEmail = email;
+                document.getElementById('code').value = '';
                 switchStep('stepCode');
 
             } catch (error) {
                 console.error('Ошибка:', error);
                 showError('Ошибка сервера. Попробуйте позже.');
-                btn.disabled = false;
-                btn.textContent = 'Отправить код';
+            } finally {
+                setButtonState(btn, false, 'Отправить код');
             }
         });
 
-    // ========================
-    // ШАГ 2 — проверка кода
-    // ========================
     document.getElementById('codeForm')
         .addEventListener('submit', async function (e) {
             e.preventDefault();
-            clearError();
+            clearMessages();
 
             const code = document.getElementById('code').value.trim();
 
@@ -132,42 +146,38 @@
             }
 
             const btn = document.getElementById('verifyCodeBtn');
-            btn.disabled = true;
-            btn.textContent = 'Проверяем...';
+            setButtonState(btn, true, 'Проверяем...');
 
             try {
                 const response = await fetch('/api/v1/auth/verify-reset-code', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: userEmail, code })
                 });
 
-                const data = await response.json();
+                const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(data.error || 'Неверный или истёкший код');
-                    btn.disabled = false;
-                    btn.textContent = 'Подтвердить';
+                    showError(collectErrorMessage(data) || 'Неверный или истёкший код');
                     return;
                 }
 
+                document.getElementById('newPassword').value = '';
+                document.getElementById('newPasswordConfirmation').value = '';
                 switchStep('stepNewPassword');
 
             } catch (error) {
                 console.error('Ошибка:', error);
                 showError('Ошибка сервера. Попробуйте позже.');
-                btn.disabled = false;
-                btn.textContent = 'Подтвердить';
+            } finally {
+                setButtonState(btn, false, 'Подтвердить');
             }
         });
 
-    // ========================
-    // ШАГ 3 — новый пароль
-    // ========================
     document.getElementById('newPasswordForm')
         .addEventListener('submit', async function (e) {
             e.preventDefault();
-            clearError();
+            clearMessages();
 
             const newPassword = document.getElementById('newPassword').value;
             const newPasswordConfirmation = document.getElementById('newPasswordConfirmation').value;
@@ -188,13 +198,12 @@
             }
 
             const btn = document.getElementById('resetBtn');
-            btn.disabled = true;
-            btn.textContent = 'Сохраняем...';
+            setButtonState(btn, true, 'Сохраняем...');
 
             try {
                 const response = await fetch('/api/v1/auth/reset-password', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: userEmail,
                         newPassword,
@@ -202,12 +211,10 @@
                     })
                 });
 
-                const data = await response.json();
+                const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(data.error || 'Ошибка смены пароля');
-                    btn.disabled = false;
-                    btn.textContent = 'Сменить пароль';
+                    showError(collectErrorMessage(data) || 'Ошибка смены пароля');
                     return;
                 }
 
@@ -216,87 +223,133 @@
             } catch (error) {
                 console.error('Ошибка:', error);
                 showError('Ошибка сервера. Попробуйте позже.');
-                btn.disabled = false;
-                btn.textContent = 'Сменить пароль';
+            } finally {
+                setButtonState(btn, false, 'Сменить пароль');
             }
         });
 
-    // ========================
-    // Повторная отправка кода
-    // ========================
     document.getElementById('resendCode')
         .addEventListener('click', async function (e) {
             e.preventDefault();
-            clearError();
+            clearMessages();
 
-            this.textContent = 'Отправляем...';
+            if (!userEmail) {
+                showError('Сначала укажите email');
+                switchStep('stepEmail');
+                return;
+            }
+
+            if (this.dataset.locked === 'true') {
+                return;
+            }
+
+            this.dataset.locked = 'true';
             this.style.pointerEvents = 'none';
+            this.textContent = 'Отправляем...';
 
             try {
                 const response = await fetch('/api/v1/auth/forgot-password', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: userEmail })
                 });
 
+                const data = await tryReadJson(response);
+
                 if (response.ok) {
                     showSuccess('Код отправлен повторно');
+                    startResendCooldown(this, 30);
                 } else {
-                    showError('Не удалось отправить код');
+                    this.dataset.locked = 'false';
+                    this.style.pointerEvents = 'auto';
+                    this.textContent = 'Отправить повторно';
+                    showError(collectErrorMessage(data) || 'Не удалось отправить код');
                 }
             } catch (error) {
+                console.error('Ошибка:', error);
+                this.dataset.locked = 'false';
+                this.style.pointerEvents = 'auto';
+                this.textContent = 'Отправить повторно';
                 showError('Ошибка сервера');
             }
-
-            // Блокируем кнопку на 30 секунд
-            let seconds = 30;
-            const interval = setInterval(() => {
-                this.textContent = `Повторно через ${seconds}с`;
-                seconds--;
-                if (seconds < 0) {
-                    clearInterval(interval);
-                    this.textContent = 'Отправить повторно';
-                    this.style.pointerEvents = 'auto';
-                }
-            }, 1000);
         });
 
-    // ========================
-    // Вспомогательные функции
-    // ========================
     function switchStep(stepId) {
-        clearError();
+        clearMessages();
+
         ['stepEmail', 'stepCode', 'stepNewPassword'].forEach(id => {
-            document.getElementById(id).style.display = 'none';
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = id === stepId ? 'block' : 'none';
+            }
         });
-        document.getElementById(stepId).style.display = 'block';
     }
 
     function isValidEmail(email) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     }
 
+    function setButtonState(button, disabled, text) {
+        if (!button) return;
+        button.disabled = disabled;
+        button.textContent = text;
+    }
+
+    async function tryReadJson(response) {
+        try {
+            return await response.json();
+        } catch {
+            return null;
+        }
+    }
+
+    function collectErrorMessage(data) {
+        if (!data) return '';
+        if (typeof data === 'string') return data;
+        if (typeof data.message === 'string' && data.message.trim()) return data.message.trim();
+        if (typeof data.error === 'string' && data.error.trim()) return data.error.trim();
+        if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join(', ');
+        return '';
+    }
+
     function showError(message) {
-        let errorDiv = getOrCreateMessageDiv('errorMessage', 'error-message');
-        errorDiv.innerHTML = message
+        const errorDiv = getOrCreateMessageDiv('errorMessage', 'error-message');
+        errorDiv.innerHTML = '';
+
+        String(message)
             .split('\n')
-            .map(msg => `<div>• ${msg}</div>`)
-            .join('');
+            .filter(Boolean)
+            .forEach(msg => {
+                const line = document.createElement('div');
+                line.textContent = `• ${msg}`;
+                errorDiv.appendChild(line);
+            });
+
         errorDiv.style.display = 'block';
     }
 
     function showSuccess(message) {
-        let successDiv = getOrCreateMessageDiv('successMessage', 'success-message');
+        const successDiv = getOrCreateMessageDiv('successMessage', 'success-message');
         successDiv.textContent = message;
         successDiv.style.display = 'block';
-        setTimeout(() => successDiv.style.display = 'none', 3000);
+
+        setTimeout(() => {
+            successDiv.style.display = 'none';
+        }, 3000);
     }
 
-    function clearError() {
+    function clearMessages() {
         const err = document.getElementById('errorMessage');
-        if (err) err.style.display = 'none';
+        if (err) {
+            err.style.display = 'none';
+            err.innerHTML = '';
+        }
+
         const suc = document.getElementById('successMessage');
-        if (suc) suc.style.display = 'none';
+        if (suc) {
+            suc.style.display = 'none';
+            suc.textContent = '';
+        }
     }
 
     function getOrCreateMessageDiv(id, className) {
@@ -308,6 +361,34 @@
             document.querySelector('.login-box').prepend(div);
         }
         return div;
+    }
+
+    function startResendCooldown(link, seconds) {
+        if (resendCooldownTimer) {
+            clearInterval(resendCooldownTimer);
+            resendCooldownTimer = null;
+        }
+
+        let remaining = seconds;
+
+        link.dataset.locked = 'true';
+        link.style.pointerEvents = 'none';
+        link.textContent = `Повторно через ${remaining}с`;
+
+        resendCooldownTimer = setInterval(() => {
+            remaining--;
+
+            if (remaining <= 0) {
+                clearInterval(resendCooldownTimer);
+                resendCooldownTimer = null;
+                link.dataset.locked = 'false';
+                link.style.pointerEvents = 'auto';
+                link.textContent = 'Отправить повторно';
+                return;
+            }
+
+            link.textContent = `Повторно через ${remaining}с`;
+        }, 1000);
     }
 </script>
 </body>

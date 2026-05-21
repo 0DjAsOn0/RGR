@@ -1,31 +1,41 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8" />
-    <link rel="stylesheet" th:href="@{/styles/style.css}"/>
-    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="stylesheet" th:href="@{/styles/base.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/auth.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/chat.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
+    <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
     <title>Мессенджер</title>
 </head>
 <body>
 <div class="chat-container">
     <div class="nav-elements">
         <div class="nav-icons">
-            <button class="profile-button" id="profileBtn">
-                <img class="avatar-img" th:src="@{/avatars/avatar.png}" alt="аватар">
+            <button class="profile-button" id="profileBtn" type="button">
+                <img class="avatar-img" th:src="@{avatars/default.png}" alt="аватар">
                 <span class="base-inscription">Профиль</span>
             </button>
-            <button class="chat-button" id="chatBtn">
+
+            <button class="chat-button" id="folderBtn" type="button">
                 <img th:src="@{/icons/add-chat.svg}" alt="создать чат">
                 <span class="base-inscription">Создать чат</span>
             </button>
         </div>
+
         <div class="settings-block">
-<!--            <button class="settings-button" id="settingsBtn">-->
-<!--                <img class="settings-icon"-->
-<!--                     th:src="@{/icons/settings-icon.svg}"-->
-<!--                     alt="настройки">-->
-<!--            </button>-->
-            <button class="logout-button" id="logoutBtn">
+            <!--
+            <button class="settings-button" id="settingsBtn" type="button">
+                <img class="settings-icon"
+                     th:src="@{/icons/settings-icon.svg}"
+                     alt="настройки">
+            </button>
+            -->
+
+            <button class="logout-button" id="logoutBtn" type="button">
                 <img class="logout-icon"
                      th:src="@{/icons/logout.svg}"
                      alt="выход">
@@ -35,16 +45,20 @@
 
     <div class="chats-list">
         <div class="search-form">
-            <input class="search-form-txt" type="text"
-                   placeholder="Поиск" id="searchInput" autocomplete="off">
+            <input class="search-form-txt"
+                   type="text"
+                   placeholder="Поиск"
+                   id="searchInput"
+                   autocomplete="off">
         </div>
+
         <ul class="search-results" id="searchResults" style="display:none;"></ul>
         <ul class="chats" id="chatsContainer"></ul>
     </div>
 
     <div class="resizer"></div>
 
-    <div class="main-dialog empty-dialog" id="mainDialog">
+    <div class="main-dialog empty-dialog" id="mainDialog" role="region" aria-live="polite">
         <p class="main-dialog-inscription">
             Выберите, кому хотели бы написать
         </p>
@@ -52,24 +66,30 @@
 </div>
 
 <!-- Модальное окно создания группы -->
-<div class="modal-overlay" id="createGroupModal" style="display:none;">
-    <div class="modal">
+<div class="modal-overlay" id="createGroupModal" style="display:none;" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="createGroupTitle">
         <div class="modal-header">
-            <span>Создать группу</span>
-            <button class="modal-close" id="closeGroupModal">✕</button>
+            <span id="createGroupTitle">Создать группу</span>
+            <button class="modal-close" id="closeGroupModal" type="button">✕</button>
         </div>
 
         <div class="modal-body">
-            <input class="input" type="text"
-                   id="groupName" placeholder="Название группы"/>
-            <input class="input" type="text"
-                   id="groupMemberSearch" placeholder="Добавить участников"/>
+            <input class="input"
+                   type="text"
+                   id="groupName"
+                   placeholder="Название группы"/>
+
+            <input class="input"
+                   type="text"
+                   id="groupMemberSearch"
+                   placeholder="Добавить участников"/>
+
             <ul class="group-search-results" id="groupSearchResults"></ul>
             <div class="selected-members" id="selectedMembers"></div>
         </div>
 
         <div class="modal-footer">
-            <button class="btn" id="createGroupBtn">Создать</button>
+            <button class="btn" id="createGroupBtn" type="button">Создать</button>
         </div>
     </div>
 </div>

@@ -1,7 +1,12 @@
 package com.rgr.messanger.exception;
 
-public class ResourceMappingException extends RuntimeException{
+public class ResourceMappingException extends RuntimeException {
+
     public ResourceMappingException(String message) {
         super(message);
+    }
+
+    public ResourceMappingException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

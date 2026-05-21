@@ -1,16 +1,21 @@
 package com.rgr.messanger.web.security;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
-@Data
+@Getter
 @AllArgsConstructor
+@ToString(exclude = "password")
+@EqualsAndHashCode(of = "id")
 public class JwtEntity implements UserDetails {
-    private Long id;
+
+    private final Long id;
     private final String username;
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;

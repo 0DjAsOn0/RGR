@@ -1,24 +1,32 @@
 import { escapeHtml } from './utils.js';
-import { state }      from './app.js';
+import { state } from './app.js';
 import { showEditForm } from './profile-edit.js';
+
+const DEFAULT_AVATAR = 'avatars/default.png';
 
 export function viewMyProfile() {
     let profilePage = document.getElementById('createWindow');
 
     if (!profilePage) {
         profilePage = document.createElement('div');
-        profilePage.id        = 'createWindow';
+        profilePage.id = 'createWindow';
         profilePage.className = 'profilePage';
         document.body.appendChild(profilePage);
+
+        // Обработчик фона вешаем ОДИН раз
+        profilePage.addEventListener('click', (e) => {
+            if (e.target === profilePage) closeCreateWindow();
+        });
     }
 
-    const user               = state.currentUser;
-    const username           = user?.username           ?? 'Загрузка...';
-    const email              = user?.email              ?? 'Загрузка...';
-    const avatarUrl          = (user?.avatarUrl ?? '/avatars/avatar.png') + '?t=' + Date.now();
-    const status = state.currentUser?.status === 'online'
-        ? 'в сети'
-        : 'не в сети';
+    const user = state.currentUser;
+    const username = user?.username ?? 'Загрузка...';
+    const email = user?.email ?? 'Загрузка...';
+    const avatarUrl = user?.avatarUrl
+        ? `${user.avatarUrl}?t=${Date.now()}`
+        : DEFAULT_AVATAR;
+
+    const status = user?.lastSeen ?? (user?.status === 'online' ? 'в сети' : 'не в сети');
     const emailNotifications = user?.emailNotifications ?? true;
 
     profilePage.innerHTML = `
@@ -56,7 +64,7 @@ export function viewMyProfile() {
     `;
 
     profilePage.classList.add('show');
-    profilePage.style.display    = 'flex';
+    profilePage.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 
     document.getElementById('editProfileBtn')
@@ -67,34 +75,39 @@ export function viewMyProfile() {
 
     document.getElementById('agree')
         ?.addEventListener('change', (e) => toggleEmailNotifications(e.target));
-
-    profilePage.addEventListener('click', (e) => {
-        if (e.target === profilePage) closeCreateWindow();
-    });
 }
 
 export function closeCreateWindow() {
     const profilePage = document.getElementById('createWindow');
     if (profilePage) {
         profilePage.classList.remove('show');
-        profilePage.style.display    = 'none';
+        profilePage.style.display = 'none';
         document.body.style.overflow = 'auto';
     }
 }
 
 export async function toggleEmailNotifications(checkbox) {
+    const previousChecked = checkbox.checked;
     const emailNotifications = !checkbox.checked;
+
     try {
         const response = await fetch('/api/v1/users/me/email-notifications', {
-            method:      'PATCH',
+            method: 'PATCH',
             credentials: 'include',
-            headers:     { 'Content-Type': 'application/json' },
-            body:        JSON.stringify({ emailNotifications })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emailNotifications })
         });
-        if (!response.ok) throw new Error('Ошибка сохранения');
-        state.currentUser.emailNotifications = emailNotifications;
+
+        if (!response.ok) {
+            throw new Error('Ошибка сохранения');
+        }
+
+        if (state.currentUser) {
+            state.currentUser.emailNotifications = emailNotifications;
+        }
+
     } catch (error) {
-        console.error('Ошибка:', error);
-        checkbox.checked = !checkbox.checked;
+        console.error('Ошибка сохранения email-уведомлений:', error);
+        checkbox.checked = previousChecked;
     }
 }

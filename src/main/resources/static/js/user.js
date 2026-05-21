@@ -1,7 +1,10 @@
-import { fetchCurrentUser, sendHeartbeat } from './api.js';
+import { fetchCurrentUser, sendHeartbeat, setOffline } from './api.js';
 import { state } from './app.js';
+import { disconnect } from './websocket.js';
 
 let heartbeatInterval = null;
+const HEARTBEAT_INTERVAL_MS = 10000;
+const DEFAULT_AVATAR = '/avatars/default.png';
 
 export async function loadCurrentUser() {
     try {
@@ -12,65 +15,90 @@ export async function loadCurrentUser() {
         startHeartbeat();
     } catch (error) {
         if (error.message === '401') {
-            window.location.href = '/login';
+            handleUnauthorized();
+            return;
         }
+
         console.error('Ошибка загрузки пользователя:', error);
     }
 }
 
 export function updateNavbar(user) {
     const profileLabel = document.querySelector('.profile-button .base-inscription');
-    if (profileLabel) profileLabel.textContent = user.username;
+    if (profileLabel) {
+        profileLabel.textContent = user.username ?? 'Профиль';
+    }
 
     const navAvatar = document.querySelector('.profile-button .avatar-img');
-    if (navAvatar && user.avatarUrl) {
-        navAvatar.src = user.avatarUrl + '?t=' + Date.now();
+    if (navAvatar) {
+        navAvatar.src = user.avatarUrl
+            ? `${user.avatarUrl}?t=${Date.now()}`
+            : DEFAULT_AVATAR;
     }
 }
 
 export function startHeartbeat() {
-    clearInterval(heartbeatInterval);
+    stopHeartbeat();
 
-    fetch('/api/v1/users/me/heartbeat', {
-        method: 'POST',
-        credentials: 'include'
-    }).then(() => {
-        if (state.currentUser) {
-            state.currentUser.status = 'online';
-        }
-    }).catch(e => console.error('Heartbeat ошибка:', e));
-
-    heartbeatInterval = setInterval(async () => {
+    const beat = async () => {
         try {
             await sendHeartbeat();
+
             if (state.currentUser) {
                 state.currentUser.status = 'online';
             }
-        } catch (e) {
-            console.error('Heartbeat ошибка:', e);
+        } catch (error) {
+            if (error.message === '401') {
+                console.warn('Heartbeat 401: пользователь больше не авторизован');
+                handleUnauthorized();
+                return;
+            }
+
+            console.error('Heartbeat ошибка:', error);
         }
-    }, 10000);
+    };
+
+    beat();
+    heartbeatInterval = setInterval(beat, HEARTBEAT_INTERVAL_MS);
 }
 
 export function stopHeartbeat() {
-    clearInterval(heartbeatInterval);
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
 }
 
 export async function logout() {
     try {
         stopHeartbeat();
+        disconnect();
 
-        await fetch('/api/v1/users/me/offline', {
-            method: 'POST',
-            credentials: 'include'
-        });
+        await setOffline();
+
         await fetch('/api/v1/auth/logout', {
             method: 'POST',
             credentials: 'include'
         });
-    } catch (e) {
-        console.error('Ошибка logout:', e);
+
+    } catch (error) {
+        console.error('Ошибка logout:', error);
     } finally {
+        clearUserState();
         window.location.href = '/login';
     }
+}
+
+function handleUnauthorized() {
+    stopHeartbeat();
+    disconnect();
+    clearUserState();
+    window.location.href = '/login';
+}
+
+function clearUserState() {
+    state.currentUser = null;
+    state.currentChatId = null;
+    state.currentChatUserId = null;
+    state.replyToId = null;
 }

@@ -1,18 +1,20 @@
-import { loadChats, renderChatList, handleSearch, startChatWithUser, clearSearch, initResizer } from './ui.js';
+import { loadChats, handleSearch, startChatWithUser, clearSearch, initResizer } from './ui.js';
 import { connectWebSocket, subscribeToChat, sendWsMessage, isConnected } from './websocket.js';
 import { loadMessages, appendMessage, updateMessageStatus, startReadObserver } from './chat.js';
 import { fetchOrCreateChat } from './api.js';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, collectErrorMessage } from './utils.js';
 import { initGroupModal } from './group.js';
 import { viewMyProfile, closeCreateWindow, toggleEmailNotifications } from './profile.js';
 import { loadCurrentUser, stopHeartbeat, logout } from './user.js';
 import { initAttachments, uploadFiles, initLightbox } from './attachments.js';
 
+const DEFAULT_AVATAR = '/avatars/default.png';
+
 export const state = {
-    currentUser:       null,
-    currentChatId:     null,
+    currentUser: null,
+    currentChatId: null,
     currentChatUserId: null,
-    replyToId:         null,
+    replyToId: null,
 };
 
 let attachmentManager = null;
@@ -23,19 +25,14 @@ let attachmentManager = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadCurrentUser();
-    const chats = await loadChats(); //получаем список чатов
+
+    if (!state.currentUser) {
+        return;
+    }
+
+    await loadChats();
 
     connectWebSocket(onMessageReceived);
-
-    //Подписываемся на все чаты через 1.5 сек (WS успевает подключиться)
-    setTimeout(() => {
-        if (chats?.length) {
-            chats.forEach(chat => {
-                subscribeToChat(chat.id, onMessageReceived);
-            });
-            console.log(`Подписан на ${chats.length} чатов`);
-        }
-    }, 1500);
 
     initResizer();
     initEventListeners();
@@ -44,7 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function initEventListeners() {
-
     document.getElementById('profileBtn')
         ?.addEventListener('click', viewMyProfile);
 
@@ -63,6 +59,7 @@ function initEventListeners() {
                 const firstResult = document.querySelector('#searchResults .card');
                 if (firstResult) firstResult.click();
             }
+
             if (e.key === 'Escape') {
                 clearSearch();
             }
@@ -70,19 +67,18 @@ function initEventListeners() {
     }
 
     document.addEventListener('click', (e) => {
+        const searchCard = e.target.closest('.search-card');
+        if (searchCard) {
+            const userId = searchCard.dataset.userId;
+            const username = searchCard.dataset.userName;
+            const avatar = searchCard.dataset.userAvatar;
+            startChatWithUser(userId, username, avatar);
+            return;
+        }
 
         const chatCard = e.target.closest('.card[data-chat-id]');
         if (chatCard) {
             openChat(chatCard);
-            return;
-        }
-
-        const searchCard = e.target.closest('.search-card');
-        if (searchCard) {
-            const userId   = searchCard.dataset.userId;
-            const username = searchCard.dataset.userName;
-            const avatar   = searchCard.dataset.userAvatar;
-            startChatWithUser(userId, username, avatar);
             return;
         }
 
@@ -101,12 +97,12 @@ function initEventListeners() {
         const cancelReply = e.target.closest('.cancel-reply-btn');
         if (cancelReply) {
             clearReply();
-            return;
         }
     });
 
     document.addEventListener('keydown', (e) => {
         if (!e.target.matches('#messageInput')) return;
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
@@ -114,12 +110,17 @@ function initEventListeners() {
     });
 
     window.addEventListener('popstate', () => {
-        if (state.currentChatId) closeChatView();
+        if (state.currentChatId) {
+            closeChatView();
+        }
     });
 
     window.addEventListener('beforeunload', () => {
         stopHeartbeat();
-        navigator.sendBeacon('/api/v1/users/me/offline');
+
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/v1/users/me/offline');
+        }
     });
 }
 
@@ -136,10 +137,10 @@ function pushChatState(chatId) {
 }
 
 function closeChatView() {
-    state.currentChatId      = null;
-    state.currentChatUserId  = null;
-    state.replyToId          = null;
-    attachmentManager        = null;
+    state.currentChatId = null;
+    state.currentChatUserId = null;
+    state.replyToId = null;
+    attachmentManager = null;
 
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
 
@@ -155,57 +156,73 @@ function closeChatView() {
 // ========================
 
 function getMessagePreview(msg) {
-    if (msg.text) return msg.text;
+    const text = msg?.text ?? msg?.content ?? '';
 
-    switch (msg.type) {
-        case 'image':
-        case 'images': return '🖼 Фото';
-        case 'video':  return '🎥 Видео';
-        case 'audio':  return '🎵 Аудио';
-        case 'file':   return '📎 Файл';
-        default:
-            if (msg.attachments?.length > 0) return '📎 Вложение';
-            return '';
+    if (typeof text === 'string' && text.trim()) {
+        return text.trim();
     }
+
+    const type = (msg?.type ?? '').toLowerCase();
+
+    if (type === 'image' || type === 'images') return '🖼 Фото';
+    if (type === 'video') return '🎥 Видео';
+    if (type === 'audio') return '🎵 Аудио';
+    if (type === 'file') return '📎 Файл';
+
+    if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
+        const first = msg.attachments[0];
+        const mime = first?.mimeType ?? '';
+
+        if (mime.startsWith('image/')) return '🖼 Фото';
+        if (mime.startsWith('video/')) return '🎥 Видео';
+        if (mime.startsWith('audio/')) return '🎵 Аудио';
+        return '📎 Файл';
+    }
+
+    return 'Новое сообщение';
 }
 
-// ========================
-// ОБНОВИТЬ ПРЕВЬЮ ЧАТА В СПИСКЕ
-// ========================
-
 function updateChatPreview(msg) {
-    const chatCard = document.querySelector(`.card[data-chat-id="${msg.chatId}"]`);
+    const chatId = String(msg.chatId);
+    const chatCard = document.querySelector(`.card[data-chat-id="${chatId}"]`);
 
     if (!chatCard) {
         loadChats();
         return;
     }
 
+    const preview = getMessagePreview(msg);
+
     const timeEl = chatCard.querySelector('.message-time');
-    if (timeEl) timeEl.textContent = msg.time ?? '';
+    if (timeEl && msg.time) {
+        timeEl.textContent = msg.time;
+    }
 
     const previewEl = chatCard.querySelector('.user-message');
     if (previewEl) {
-        previewEl.textContent = getMessagePreview(msg);
+        previewEl.textContent = preview;
     }
 
-    if (String(msg.chatId) !== String(state.currentChatId) && !msg.own) {
+    const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
+
+    if (chatId !== String(state.currentChatId) && !isOwn) {
         let badge = chatCard.querySelector('.unread-badge');
+
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'unread-badge';
             chatCard.querySelector('.message-preview')?.appendChild(badge);
         }
-        badge.textContent = (parseInt(badge.textContent || '0') + 1).toString();
+
+        badge.textContent = String(parseInt(badge.textContent || '0', 10) + 1);
     }
 
-    // Поднимаем чат наверх (после Заметок)
     const container = document.getElementById('chatsContainer');
     if (container && chatCard.parentElement === container) {
         const firstCard = container.querySelector('.card:first-child');
-        const isNotes   = firstCard?.querySelector('.notes-avatar') != null;
+        const firstType = firstCard?.dataset?.chatType;
 
-        if (isNotes && firstCard !== chatCard) {
+        if (firstType === 'notes' && firstCard !== chatCard) {
             firstCard.after(chatCard);
         } else {
             container.prepend(chatCard);
@@ -227,16 +244,24 @@ function onMessageReceived(frame) {
 
     msg.own = Number(msg.senderId) === Number(state.currentUser?.id);
 
-    // Мгновенно обновляем превью в списке
-    updateChatPreview(msg);
+    console.log('WS preview message:', msg);
 
-    // Добавляем в открытый чат
-    const container = document.getElementById('messagesContainer');
-    if (!container) return;
-    if (container.querySelector(`[data-id="${msg.id}"]`)) return;
+    const isCurrentChat = String(msg.chatId) === String(state.currentChatId);
 
-    appendMessage(msg);
-    startReadObserver();
+    if (isCurrentChat) {
+        const container = document.getElementById('messagesContainer');
+        if (!container) return;
+
+        if (!container.querySelector(`[data-id="${msg.id}"]`)) {
+            appendMessage(msg);
+            startReadObserver();
+        }
+
+        updateChatPreview(msg);
+        return;
+    }
+
+    loadChats();
 }
 
 // ========================
@@ -248,23 +273,18 @@ export async function openChat(card) {
     card.classList?.add('active');
 
     const badge = card.querySelector('.unread-badge');
-    if (badge) badge.remove();
-
-    const userId     = card.dataset.userId;
-    const userName   = card.dataset.userName   ?? 'Собеседник';
-    const userAvatar = card.dataset.userAvatar ?? '/avatars/avatar.png';
-    const chatType   = card.dataset.chatType   ?? 'private';
-    let   chatId     = card.dataset.chatId;
-
-    const isNotes = !userId && !!chatId && userName === 'Заметки';
-    const isGroup = chatType === 'group';
-
-    if (chatId) {
-        fetch(`/api/v1/messages/chat/${chatId}/read`, {
-            method: 'POST',
-            credentials: 'include'
-        }).catch(err => console.error('Ошибка отметки прочитанных:', err));
+    if (badge) {
+        badge.remove();
     }
+
+    const userId = card.dataset.userId;
+    const userName = card.dataset.userName ?? 'Собеседник';
+    const userAvatar = card.dataset.userAvatar ?? DEFAULT_AVATAR;
+    const chatType = card.dataset.chatType ?? 'private';
+    let chatId = card.dataset.chatId;
+
+    const isNotes = chatType === 'notes';
+    const isGroup = chatType === 'group';
 
     if (!chatId && userId) {
         const data = await fetchOrCreateChat(userId);
@@ -272,13 +292,25 @@ export async function openChat(card) {
         card.dataset.chatId = chatId;
     }
 
-    state.currentChatId     = chatId;
+    if (!chatId) {
+        console.error('Не удалось открыть чат: отсутствует chatId');
+        return;
+    }
+
+    state.currentChatId = chatId;
     state.currentChatUserId = userId || null;
-    state.replyToId         = null;
+    state.replyToId = null;
 
     pushChatState(chatId);
 
+    fetch(`/api/v1/messages/chat/${chatId}/read`, {
+        method: 'POST',
+        credentials: 'include'
+    }).catch(err => console.error('Ошибка отметки прочитанных:', err));
+
     const dialog = document.getElementById('mainDialog');
+    if (!dialog) return;
+
     dialog.classList.remove('empty-dialog');
     dialog.innerHTML = `
         <div class="dialog-header">
@@ -299,7 +331,7 @@ export async function openChat(card) {
                 </div>
             </div>
             <div class="dialog-header-actions">
-                <button class="icon-btn">⋮</button>
+                <button class="icon-btn" type="button">⋮</button>
             </div>
         </div>
 
@@ -312,13 +344,13 @@ export async function openChat(card) {
                 <span class="reply-preview-label">Ответ на:</span>
                 <span class="reply-preview-text" id="replyPreviewText"></span>
             </div>
-            <button class="cancel-reply-btn">✕</button>
+            <button class="cancel-reply-btn" type="button">✕</button>
         </div>
 
         <div class="attachments-preview" id="attachmentsPreview" style="display:none;"></div>
 
         <div class="dialog-input-area">
-            <button class="attach-btn" id="attachBtn" title="Прикрепить файл">
+            <button class="attach-btn" id="attachBtn" type="button" title="Прикрепить файл">
                 <img src="/icons/attachment.svg" alt="вложение">
             </button>
             <input type="file" id="fileInput" multiple hidden>
@@ -329,7 +361,7 @@ export async function openChat(card) {
                 placeholder="${isNotes ? 'Написать заметку...' : 'Написать сообщение...'}"
                 rows="1"></textarea>
 
-            <button class="icon-btn send-btn">➤</button>
+            <button class="icon-btn send-btn" type="button">➤</button>
         </div>
     `;
 
@@ -339,7 +371,14 @@ export async function openChat(card) {
         loadUserStatus(userId);
     }
 
+    const openedChatId = String(chatId);
+
     await loadMessages(chatId);
+
+    if (String(state.currentChatId) !== openedChatId) {
+        return;
+    }
+
     subscribeToChat(chatId, onMessageReceived);
 }
 
@@ -352,10 +391,12 @@ async function loadUserStatus(userId) {
         const response = await fetch(`/api/v1/users/${userId}`, {
             credentials: 'include'
         });
+
         if (!response.ok) return;
 
         const user = await response.json();
         const statusEl = document.getElementById('dialogStatus');
+
         if (statusEl) {
             statusEl.textContent = user.lastSeen ?? 'не в сети';
             statusEl.style.color = user.status === 'online' ? '#4caf50' : '';
@@ -373,10 +414,16 @@ export function setReply(messageId, messageText) {
     state.replyToId = messageId;
 
     const replyPreview = document.getElementById('replyPreview');
-    const replyText    = document.getElementById('replyPreviewText');
+    const replyText = document.getElementById('replyPreviewText');
 
     if (replyPreview && replyText) {
-        replyText.textContent = messageText?.slice(0, 80) + (messageText?.length > 80 ? '...' : '');
+        const safeText = (messageText && messageText.trim())
+            ? messageText
+            : 'Сообщение без текста';
+
+        replyText.textContent =
+            safeText.slice(0, 80) + (safeText.length > 80 ? '...' : '');
+
         replyPreview.style.display = 'flex';
     }
 
@@ -386,7 +433,9 @@ export function setReply(messageId, messageText) {
 function clearReply() {
     state.replyToId = null;
     const replyPreview = document.getElementById('replyPreview');
-    if (replyPreview) replyPreview.style.display = 'none';
+    if (replyPreview) {
+        replyPreview.style.display = 'none';
+    }
 }
 
 // ========================
@@ -397,7 +446,7 @@ async function sendMessage() {
     const input = document.getElementById('messageInput');
     if (!input || !state.currentChatId) return;
 
-    const content  = input.value.trim();
+    const content = input.value.trim();
     const hasFiles = attachmentManager?.hasFiles() ?? false;
 
     if (!content && !hasFiles) return;
@@ -418,34 +467,46 @@ async function sendMessage() {
 }
 
 async function sendMessageWithFiles(text, input) {
-    const files = attachmentManager.getFiles();
+    const files = attachmentManager?.getFiles?.() ?? [];
 
     try {
         const sendBtn = document.querySelector('.send-btn');
         if (sendBtn) {
-            sendBtn.disabled  = true;
+            sendBtn.disabled = true;
             sendBtn.innerHTML = '⏳';
         }
 
-        await uploadFiles(
+        const createdMessage = await uploadFiles(
             state.currentChatId,
             files,
             text,
             state.replyToId
         );
 
+        if (createdMessage) {
+            createdMessage.own = Number(createdMessage.senderId) === Number(state.currentUser?.id);
+
+            if (String(createdMessage.chatId) === String(state.currentChatId)) {
+                updateChatPreview(createdMessage);
+                appendMessage(createdMessage);
+                startReadObserver();
+            } else {
+                loadChats();
+            }
+        }
+
         input.value = '';
         input.style.height = 'auto';
-        attachmentManager.clearFiles();
+        attachmentManager?.clearFiles?.();
         clearReply();
 
     } catch (error) {
         console.error('Ошибка загрузки файлов:', error);
-        alert('Ошибка загрузки: ' + error.message);
+        alert('Ошибка загрузки: ' + (error.message ?? 'Неизвестная ошибка'));
     } finally {
         const sendBtn = document.querySelector('.send-btn');
         if (sendBtn) {
-            sendBtn.disabled  = false;
+            sendBtn.disabled = false;
             sendBtn.innerHTML = '➤';
         }
     }
@@ -453,18 +514,28 @@ async function sendMessageWithFiles(text, input) {
 
 async function sendMessageHttp(content, input) {
     try {
-        const response = await fetch(
-            `/api/v1/messages/chat/${state.currentChatId}`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    content,
-                    replyToId: state.replyToId
-                })
-            });
+        const response = await fetch(`/api/v1/messages/chat/${state.currentChatId}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content,
+                replyToId: state.replyToId
+            })
+        });
 
-        if (!response.ok) throw new Error('Ошибка отправки');
+        if (!response.ok) {
+            let message = 'Ошибка отправки';
+
+            try {
+                const data = await response.json();
+                message = collectErrorMessage(data) || message;
+            } catch {
+                // ignore
+            }
+
+            throw new Error(message);
+        }
 
         input.value = '';
         input.style.height = 'auto';
@@ -472,8 +543,7 @@ async function sendMessageHttp(content, input) {
 
     } catch (error) {
         console.error('Ошибка HTTP отправки:', error);
-        const lastMsg = document.querySelector('.message-out:last-child .message-status');
-        if (lastMsg) lastMsg.innerHTML = '❌';
+        alert(error.message ?? 'Ошибка отправки');
     }
 }
 
@@ -481,12 +551,12 @@ async function sendMessageHttp(content, input) {
 // ГЛОБАЛЬНЫЕ ФУНКЦИИ
 // ========================
 
-window.handleOpenChat           = openChat;
-window.handleStartChat          = startChatWithUser;
-window.handleSearch             = handleSearch;
-window.sendMessage              = sendMessage;
-window.viewMyProfile            = viewMyProfile;
-window.closeCreateWindow        = closeCreateWindow;
+window.handleOpenChat = openChat;
+window.handleStartChat = startChatWithUser;
+window.handleSearch = handleSearch;
+window.sendMessage = sendMessage;
+window.viewMyProfile = viewMyProfile;
+window.closeCreateWindow = closeCreateWindow;
 window.toggleEmailNotifications = toggleEmailNotifications;
-window.logout                   = logout;
-window.setReply                 = setReply;
+window.logout = logout;
+window.setReply = setReply;

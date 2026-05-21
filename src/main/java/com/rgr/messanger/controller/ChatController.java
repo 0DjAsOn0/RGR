@@ -1,37 +1,35 @@
 package com.rgr.messanger.controller;
 
-import com.rgr.messanger.entity.chat.Chat;
-import com.rgr.messanger.entity.user.User;
 import com.rgr.messanger.service.ChatService;
-import com.rgr.messanger.service.UserService;
+import com.rgr.messanger.web.dto.chat.ChatDto;
+import com.rgr.messanger.web.dto.chat.ChatResponse;
 import com.rgr.messanger.web.dto.chat.CreateGroupRequest;
 import com.rgr.messanger.web.dto.chat.UpdateGroupRequest;
+import com.rgr.messanger.web.security.JwtEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
-@Controller
+@RestController
 @RequestMapping("/api/v1/chats")
 @RequiredArgsConstructor
 public class ChatController {
 
     private final ChatService chatService;
-    private final UserService userService;
 
+    // ========================
+    // ПОЛУЧИТЬ ВСЕ МОИ ЧАТЫ
+    // ========================
     @GetMapping
-    @ResponseBody
-    public ResponseEntity<List<ChatResponse>> getMyChats(Principal principal) {
-        if (principal == null) return ResponseEntity.status(401).build();
-
-        User me = userService.getByUsername(principal.getName());
-        List<Chat> chats = chatService.findByUserId(me.getId());
+    public ResponseEntity<List<ChatResponse>> getMyChats(
+            @AuthenticationPrincipal JwtEntity user
+    ) {
+        List<ChatDto> chats = chatService.findByUserId(user.getId());
 
         List<ChatResponse> response = chats.stream()
                 .map(ChatResponse::from)
@@ -40,110 +38,74 @@ public class ChatController {
         return ResponseEntity.ok(response);
     }
 
-    public record ChatResponse(
-            Long   id,
-            String type,
-            String name,
-            String avatarUrl,
-            String lastMessage,
-            String lastMessageType,
-            boolean hasAttachment,
-            String lastMessageTime,
-            Long   interlocutorId,
-            String interlocutorName,
-            String interlocutorAvatar,
-            int    unreadCount
-    ) {
-        public static ChatResponse from(Chat chat) {
-
-            String lastMsgType = chat.getLastMessageType();
-            boolean hasAttach  = lastMsgType != null &&
-                    !lastMsgType.equals("text");
-
-            return new ChatResponse(
-                    chat.getId(),
-                    chat.getType(),
-                    chat.getName(),
-                    chat.getAvatarUrl(),
-                    chat.getLastMessage(),
-                    lastMsgType,
-                    hasAttach,
-                    chat.getLastMessageTime() != null
-                            ? chat.getLastMessageTime()
-                              .format(DateTimeFormatter.ofPattern("HH:mm"))
-                            : "",
-                    chat.getInterlocutorId(),
-                    chat.getInterlocutorName(),
-                    chat.getInterlocutorAvatar(),
-                    chat.getUnreadCount()
-            );
-        }
-    }
-
+    // ========================
+    // СОЗДАТЬ ГРУППУ
+    // ========================
     @PostMapping("/group")
-    @ResponseBody
     public ResponseEntity<Map<String, Long>> createGroup(
             @Validated @RequestBody CreateGroupRequest request,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
-        User me = userService.getByUsername(principal.getName());
         Long chatId = chatService.createGroupChat(
-                request.getName(), me.getId(), request.getMemberIds()
+                request.getName(), user.getId(), request.getMemberIds()
         );
         return ResponseEntity.ok(Map.of("chatId", chatId));
     }
 
+    // ========================
+    // ОБНОВИТЬ ГРУППУ
+    // ========================
     @PutMapping("/{chatId}")
-    @ResponseBody
     public ResponseEntity<Void> updateGroup(
             @PathVariable Long chatId,
             @Validated @RequestBody UpdateGroupRequest request,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
-        User me = userService.getByUsername(principal.getName());
         chatService.updateChat(
-                chatId, request.getName(), request.getAvatarUrl(), me.getId()
+                chatId, request.getName(), request.getAvatarUrl(), user.getId()
         );
         return ResponseEntity.ok().build();
     }
 
+    // ========================
+    // УДАЛИТЬ ГРУППУ
+    // ========================
     @DeleteMapping("/{chatId}")
-    @ResponseBody
     public ResponseEntity<Void> deleteGroup(
             @PathVariable Long chatId,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
-        User me = userService.getByUsername(principal.getName());
-        chatService.deleteChat(chatId, me.getId());
+        chatService.deleteChat(chatId, user.getId());
         return ResponseEntity.ok().build();
     }
 
+    // ========================
+    // ДОБАВИТЬ УЧАСТНИКА
+    // ========================
     @PostMapping("/{chatId}/members")
-    @ResponseBody
     public ResponseEntity<Void> addMember(
             @PathVariable Long chatId,
             @RequestBody Map<String, Long> body,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
-        User me = userService.getByUsername(principal.getName());
-        chatService.addMember(chatId, body.get("userId"), me.getId());
+        Long memberId = body.get("userId");
+        if (memberId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        chatService.addMember(chatId, memberId, user.getId());
         return ResponseEntity.ok().build();
     }
 
+    // ========================
+    // УДАЛИТЬ УЧАСТНИКА
+    // ========================
     @DeleteMapping("/{chatId}/members/{userId}")
-    @ResponseBody
     public ResponseEntity<Void> removeMember(
             @PathVariable Long chatId,
             @PathVariable Long userId,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
-        User me = userService.getByUsername(principal.getName());
-        chatService.removeMember(chatId, userId, me.getId());
+        chatService.removeMember(chatId, userId, user.getId());
         return ResponseEntity.ok().build();
     }
 }

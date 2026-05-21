@@ -1,8 +1,9 @@
 import { escapeHtml } from './utils.js';
-import { state }      from './app.js';
+import { state } from './app.js';
 import { closeCreateWindow, viewMyProfile } from './profile.js';
 import { updateNavbar } from './user.js';
 
+const DEFAULT_AVATAR = 'avatars/default.png';
 let avatarChanged = false;
 
 // ========================
@@ -11,27 +12,51 @@ let avatarChanged = false;
 
 function showError(el, message) {
     if (!el) return;
-    el.textContent   = message;
+    el.textContent = message;
     el.style.display = 'block';
 }
 
 function hideError(el) {
     if (!el) return;
-    el.textContent   = '';
+    el.textContent = '';
     el.style.display = 'none';
+}
+
+function collectErrorMessage(data) {
+    if (!data) return 'Ошибка сохранения';
+    if (typeof data.error === 'string') return data.error;
+
+    const values = Object.values(data).filter(v => typeof v === 'string');
+    if (values.length > 0) return values.join(', ');
+
+    return 'Ошибка сохранения';
+}
+
+function validateUsername(username) {
+    if (!username) return null;
+    if (username.length < 3 || username.length > 30) {
+        return 'Имя пользователя должно быть от 3 до 30 символов';
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        return 'Имя пользователя может содержать только латинские буквы, цифры и _';
+    }
+    return null;
 }
 
 function updatePasswordStrength(password) {
     const el = document.getElementById('passwordStrength');
     if (!el) return;
 
-    if (!password) { el.innerHTML = ''; return; }
+    if (!password) {
+        el.innerHTML = '';
+        return;
+    }
 
     let strength = 0;
-    if (password.length >= 6)          strength++;
-    if (password.length >= 10)         strength++;
-    if (/[A-Z]/.test(password))        strength++;
-    if (/[0-9]/.test(password))        strength++;
+    if (password.length >= 6) strength++;
+    if (password.length >= 10) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
 
     const levels = [
@@ -42,7 +67,7 @@ function updatePasswordStrength(password) {
         { label: 'Отличный',     color: '#00cc44' },
     ];
 
-    const level = levels[Math.min(strength - 1, 4)];
+    const level = levels[Math.min(Math.max(strength - 1, 0), 4)];
 
     el.innerHTML = `
         <div class="strength-bar">
@@ -63,7 +88,7 @@ function updatePasswordStrength(password) {
 // ========================
 
 async function handleAvatarChange(e) {
-    const file    = e.target.files[0];
+    const file = e.target.files[0];
     if (!file) return;
 
     const preview = document.getElementById('avatarPreview');
@@ -93,33 +118,34 @@ async function handleAvatarChange(e) {
         formData.append('file', file);
 
         const response = await fetch('/api/v1/users/me/avatar', {
-            method:      'POST',
+            method: 'POST',
             credentials: 'include',
-            body:        formData
+            body: formData
         });
 
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (_) {}
+
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error ?? 'Ошибка загрузки');
+            throw new Error(data?.error ?? 'Ошибка загрузки');
         }
 
-        const data = await response.json();
-        const url  = data.avatarUrl + '?t=' + Date.now();
+        const url = `${data.avatarUrl}?t=${Date.now()}`;
 
-        // Обновляем state
         state.currentUser.avatarUrl = data.avatarUrl;
         avatarChanged = true;
 
         if (preview) preview.src = url;
         updateNavbar(state.currentUser);
 
-        // обновляем аватар в шапке профиля
         const profileAvatar = document.getElementById('profileAvatar');
         if (profileAvatar) profileAvatar.src = url;
 
     } catch (error) {
         console.error('Ошибка загрузки аватара:', error);
-        if (errorEl) showError(errorEl, error.message);
+        showError(errorEl, error.message);
     }
 }
 
@@ -139,9 +165,16 @@ async function saveProfile() {
     hideError(errorEl);
     if (successEl) successEl.style.display = 'none';
 
-    // ========================
-    // ВАЛИДАЦИЯ ПАРОЛЯ
-    // ========================
+    // Валидация имени
+    if (username && username !== state.currentUser?.username) {
+        const usernameError = validateUsername(username);
+        if (usernameError) {
+            showError(errorEl, usernameError);
+            return;
+        }
+    }
+
+    // Валидация пароля
     if (password || oldPassword || passwordConfirm) {
         if (!oldPassword) {
             showError(errorEl, 'Введите текущий пароль');
@@ -165,9 +198,6 @@ async function saveProfile() {
         }
     }
 
-    // ========================
-    // ФОРМИРУЕМ ТЕЛО ЗАПРОСА
-    // ========================
     const body = {};
 
     if (username && username !== state.currentUser?.username) {
@@ -176,67 +206,65 @@ async function saveProfile() {
 
     if (password && oldPassword) {
         body.oldPassword = oldPassword;
-        body.password    = password;
+        body.password = password;
     }
 
-    // если только аватар поменялся — это ок
     if (Object.keys(body).length === 0 && !avatarChanged) {
         showError(errorEl, 'Нет изменений');
         return;
     }
 
-    // если только аватар — просто показываем успех
     if (Object.keys(body).length === 0 && avatarChanged) {
         avatarChanged = false;
         if (successEl) successEl.style.display = 'block';
-        setTimeout(() => viewMyProfile(), 1500);
+        setTimeout(viewMyProfile, 1500);
         return;
     }
 
-    // ========================
-    // ОТПРАВКА
-    // ========================
     try {
-        saveBtn.disabled    = true;
-        saveBtn.textContent = 'Сохранение...';
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Сохранение...';
+        }
 
         const response = await fetch('/api/v1/users/me', {
-            method:      'PATCH',
+            method: 'PATCH',
             credentials: 'include',
-            headers:     { 'Content-Type': 'application/json' },
-            body:        JSON.stringify(body)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
         });
 
-        if (response.status === 400) {
-            const data = await response.json();
-            showError(errorEl, data.error ?? 'Неверный текущий пароль');
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (_) {}
+
+        if (!response.ok) {
+            showError(errorEl, collectErrorMessage(data));
             return;
         }
 
-        if (!response.ok) throw new Error('Ошибка сохранения');
-
-        const updated = await response.json();
-
-        state.currentUser = { ...state.currentUser, ...updated };
+        state.currentUser = { ...state.currentUser, ...data };
         avatarChanged = false;
 
         updateNavbar(state.currentUser);
 
-        // Очищаем поля пароля
         ['editOldPassword', 'editPassword', 'editPasswordConfirm'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
 
         if (successEl) successEl.style.display = 'block';
-        setTimeout(() => viewMyProfile(), 1500);
+        setTimeout(viewMyProfile, 1500);
 
     } catch (error) {
         console.error('Ошибка обновления:', error);
         showError(errorEl, error.message);
     } finally {
-        saveBtn.disabled    = false;
-        saveBtn.textContent = 'Сохранить';
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Сохранить';
+        }
     }
 }
 
@@ -245,11 +273,15 @@ async function saveProfile() {
 // ========================
 
 export function showEditForm() {
+    avatarChanged = false;
+
     const content = document.querySelector('.profilePage-content');
     if (!content) return;
 
-    const user      = state.currentUser;
-    const avatarUrl = (user?.avatarUrl ?? '/avatars/avatar.png') + '?t=' + Date.now();
+    const user = state.currentUser;
+    const avatarUrl = user?.avatarUrl
+        ? `${user.avatarUrl}?t=${Date.now()}`
+        : DEFAULT_AVATAR;
 
     content.innerHTML = `
         <div class="header-profile">
@@ -344,7 +376,7 @@ export function showEditForm() {
         btn.addEventListener('click', () => {
             const input = document.getElementById(btn.dataset.target);
             if (!input) return;
-            input.type      = input.type === 'password' ? 'text' : 'password';
+            input.type = input.type === 'password' ? 'text' : 'password';
             btn.textContent = input.type === 'password' ? '👁' : '🙈';
         });
     });

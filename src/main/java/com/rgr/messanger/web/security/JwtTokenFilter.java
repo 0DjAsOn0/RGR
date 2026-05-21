@@ -1,54 +1,65 @@
 package com.rgr.messanger.web.security;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.GenericFilterBean;
 
+import java.io.IOException;
+
+@Slf4j
 @AllArgsConstructor
 public class JwtTokenFilter extends GenericFilterBean {
+
+    private static final String COOKIE_NAME = "accessToken";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenProvider jwtTokenProvider;
 
     @Override
-    @SneakyThrows
     public void doFilter(
-            final ServletRequest servletRequest,
-            final ServletResponse servletResponse,
-            final FilterChain filterChain
-    )
-    {
+            ServletRequest servletRequest,
+            ServletResponse servletResponse,
+            FilterChain filterChain
+    ) throws IOException, ServletException {
+
         String token = resolveToken((HttpServletRequest) servletRequest);
 
-        try {
-            if (token != null && jwtTokenProvider.isValid(token)) {
-                Authentication authentication = jwtTokenProvider.getAuthentication(token);
-                if (authentication != null) {
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+        if (token != null) {
+            try {
+                if (jwtTokenProvider.isValid(token)) {
+                    Authentication authentication = jwtTokenProvider.getAuthentication(token);
+                    if (authentication != null) {
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
                 }
+            } catch (Exception e) {
+                log.debug("JWT authentication failed: {}", e.getMessage());
+                SecurityContextHolder.clearContext();
             }
-        } catch (Exception ignored) {}
+        }
 
         filterChain.doFilter(servletRequest, servletResponse);
     }
 
-
     private String resolveToken(HttpServletRequest request) {
-
+        // 1) Authorization header
         String bearer = request.getHeader("Authorization");
-        if (bearer != null && bearer.startsWith("Bearer ")) {
-            return bearer.substring(7);
+        if (bearer != null && bearer.startsWith(BEARER_PREFIX)) {
+            return bearer.substring(BEARER_PREFIX.length());
         }
 
+        // 2) Cookie
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
-                if ("accessToken".equals(cookie.getName())) {
+                if (COOKIE_NAME.equals(cookie.getName())) {
                     return cookie.getValue();
                 }
             }

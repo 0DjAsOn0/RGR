@@ -1,76 +1,89 @@
+-- USERS
 CREATE TABLE IF NOT EXISTS users (
-    id          BIGSERIAL PRIMARY KEY,
-    username    VARCHAR(50) UNIQUE NOT NULL,
-    email       VARCHAR(255) UNIQUE NOT NULL,
-    email_verified BOOLEAN DEFAULT FALSE,
-    password    VARCHAR(255) NOT NULL,
-    avatar_url  TEXT,
-    status      VARCHAR(20) DEFAULT 'offline',
-    last_seen   TIMESTAMP DEFAULT NOW(),
-    created_at  TIMESTAMP DEFAULT NOW(),
-    updated_at  TIMESTAMP DEFAULT NOW()
-    );
-
-CREATE TABLE IF NOT EXISTS user_roles (
-                                          user_id BIGINT     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                                          role    VARCHAR(50) NOT NULL,
-                                          CONSTRAINT pk_user_roles PRIMARY KEY (user_id, role)
+    id             BIGSERIAL PRIMARY KEY,
+    username       VARCHAR(50)  UNIQUE NOT NULL,
+    email          VARCHAR(255) UNIQUE NOT NULL,
+    email_verified BOOLEAN      DEFAULT FALSE,
+    email_notifications BOOLEAN DEFAULT TRUE,
+    password       VARCHAR(255) NOT NULL,
+    avatar_url     TEXT,
+    status         VARCHAR(20)  DEFAULT 'offline'
+        CHECK (status IN ('online', 'offline')),
+    last_seen      TIMESTAMP    DEFAULT NOW(),
+    created_at     TIMESTAMP    DEFAULT NOW(),
+    updated_at     TIMESTAMP    DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_email    ON users(email);
 
+-- ROLES
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role    VARCHAR(50) NOT NULL,
+    CONSTRAINT pk_user_roles PRIMARY KEY (user_id, role)
+);
+
+-- CHATS
 CREATE TABLE IF NOT EXISTS chats (
-                                     id          BIGSERIAL PRIMARY KEY,
-                                     type        VARCHAR(20) NOT NULL DEFAULT 'private',
-    name        VARCHAR(100),
-    avatar_url  TEXT,
-    creator_id  BIGINT REFERENCES users(id),
-    created_at  TIMESTAMP DEFAULT NOW(),
-    updated_at  TIMESTAMP DEFAULT NOW()
-    );
+    id         BIGSERIAL PRIMARY KEY,
+    type       VARCHAR(20) NOT NULL DEFAULT 'private'
+        CHECK (type IN ('private', 'group')),
+    name       VARCHAR(100),
+    avatar_url TEXT,
+    creator_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
 
+-- CHAT MEMBERS
 CREATE TABLE IF NOT EXISTS chat_members (
-                                            id          BIGSERIAL PRIMARY KEY,
-                                            chat_id     BIGINT REFERENCES chats(id) ON DELETE CASCADE,
+    id          BIGSERIAL PRIMARY KEY,
+    chat_id     BIGINT REFERENCES chats(id) ON DELETE CASCADE,
     user_id     BIGINT REFERENCES users(id) ON DELETE CASCADE,
-    role        VARCHAR(20) DEFAULT 'member',
+    role        VARCHAR(20) DEFAULT 'member'
+        CHECK (role IN ('member', 'admin', 'owner')),
     joined_at   TIMESTAMP DEFAULT NOW(),
     muted_until TIMESTAMP,
     UNIQUE(chat_id, user_id)
-    );
+);
 
 CREATE INDEX IF NOT EXISTS idx_chat_members_chat ON chat_members(chat_id);
 CREATE INDEX IF NOT EXISTS idx_chat_members_user ON chat_members(user_id);
 
+-- MESSAGES
 CREATE TABLE IF NOT EXISTS messages (
     id          BIGSERIAL PRIMARY KEY,
     chat_id     BIGINT REFERENCES chats(id) ON DELETE CASCADE,
     sender_id   BIGINT REFERENCES users(id) ON DELETE SET NULL,
     reply_to_id BIGINT REFERENCES messages(id) ON DELETE SET NULL,
-    type        VARCHAR(20) DEFAULT 'text',
-    text     TEXT,
-    is_edited   BOOLEAN DEFAULT FALSE,
-    is_deleted  BOOLEAN DEFAULT FALSE,
-    send_date  TIMESTAMP DEFAULT NOW(),
+    type        VARCHAR(20) DEFAULT 'text'
+        CHECK (type IN ('text', 'image', 'images', 'video', 'audio', 'file')),
+    text        TEXT,
+    is_edited   BOOLEAN   DEFAULT FALSE,
+    is_deleted  BOOLEAN   DEFAULT FALSE,
+    send_date   TIMESTAMP DEFAULT NOW(),
     edited_at   TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'NOT_SENDING'
-    );
+    status      VARCHAR(20) DEFAULT 'SENT'
+        CHECK (status IN ('SENDING', 'SENT', 'DELIVERED', 'READ', 'NOT_SENDING'))
+);
 
 CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, send_date DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender      ON messages(sender_id);
 
+-- MESSAGE READS
 CREATE TABLE IF NOT EXISTS message_reads (
     id            BIGSERIAL PRIMARY KEY,
     chat_id       BIGINT REFERENCES chats(id) ON DELETE CASCADE,
     user_id       BIGINT REFERENCES users(id) ON DELETE CASCADE,
-    last_read_msg BIGINT REFERENCES messages(id),
+    last_read_msg BIGINT REFERENCES messages(id) ON DELETE SET NULL,
     last_read_at  TIMESTAMP DEFAULT NOW(),
     UNIQUE(chat_id, user_id)
-    );
+);
 
 CREATE INDEX IF NOT EXISTS idx_reads_chat_user ON message_reads(chat_id, user_id);
 
+-- ATTACHMENTS
 CREATE TABLE IF NOT EXISTS attachments (
     id         BIGSERIAL PRIMARY KEY,
     message_id BIGINT REFERENCES messages(id) ON DELETE CASCADE,
@@ -79,6 +92,6 @@ CREATE TABLE IF NOT EXISTS attachments (
     file_size  BIGINT,
     mime_type  VARCHAR(100),
     created_at TIMESTAMP DEFAULT NOW()
-    );
+);
 
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);

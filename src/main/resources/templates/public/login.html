@@ -2,84 +2,117 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8"/>
-    <link rel="stylesheet" th:href="@{/styles/style.css}"/>
-    <link rel="icon" href="./icons/favicon.ico" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="stylesheet" th:href="@{/styles/base.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/auth.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/chat.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
+    <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
     <title>Вход</title>
 </head>
 <body>
-    <div class="login-box">
-        <div class="logo">sicelica</div>
+<div class="login-box">
+    <div class="logo">sicelica</div>
 
-        <form id="loginForm">
-            <input id="email" class="input" type="text"
-                   placeholder="почта" required/>
-            <input id="password" class="input" type="password"
-                   placeholder="пароль" required/>
+    <form id="loginForm">
+        <input id="email"
+               class="input"
+               type="text"
+               placeholder="почта"
+               autocomplete="email"
+               required/>
 
-            <div class="row">
-                <label>
-                    <input type="checkbox" name="remember-me"> Запомнить меня
-                </label>
-            </div>
+        <input id="password"
+               class="input"
+               type="password"
+               placeholder="пароль"
+               autocomplete="current-password"
+               required/>
 
-            <div id="errorBox" class="errorBox">
-                Неверный логин или пароль
-            </div>
-
-            <button class="btn" type="submit">Войти</button>
-        </form>
-
-        <div class="bottom-links">
-            <a th:href="@{/register}">Зарегистрироваться</a>
-            <a th:href="@{/passreset}">Забыли пароль?</a>
+        <div class="row">
+            <label>
+                <input type="checkbox" name="remember-me"> Запомнить меня
+            </label>
         </div>
+
+        <div id="errorBox" class="errorBox" style="display:none;">
+            Неверный логин или пароль
+        </div>
+
+        <button class="btn" type="submit">Войти</button>
+    </form>
+
+    <div class="bottom-links">
+        <a th:href="@{/register}">Зарегистрироваться</a>
+        <a th:href="@{/passreset}">Забыли пароль?</a>
     </div>
+</div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            document.getElementById('loginForm')
-                .addEventListener('submit', async function (e) {
-                    e.preventDefault();
+<script>
+    function collectErrorMessage(data) {
+        if (!data) return '';
+        if (typeof data === 'string') return data;
+        if (typeof data.message === 'string' && data.message.trim()) return data.message.trim();
+        if (typeof data.error === 'string' && data.error.trim()) return data.error.trim();
+        if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join(', ');
+        return '';
+    }
 
-                    const email = document.getElementById('email').value;
+    document.addEventListener('DOMContentLoaded', function () {
+        const loginForm = document.getElementById('loginForm');
+        const errorBox = document.getElementById('errorBox');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
 
-                    const password   = document.getElementById('password').value;
+        loginForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
 
-                    const rememberMe = document.querySelector('input[name="remember-me"]').checked;
+            errorBox.style.display = 'none';
+            errorBox.textContent = 'Неверный логин или пароль';
+
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            const rememberMe = document.querySelector('input[name="remember-me"]').checked;
+
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password, rememberMe })
+                });
+
+                if (!response.ok) {
+                    let message = 'Неверный логин или пароль';
 
                     try {
-                        const response = await fetch('/api/v1/auth/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-
-                            body: JSON.stringify({ email, password, rememberMe })
-                        });
-
-                        if (!response.ok) {
-                            document.getElementById('errorBox').style.display = 'block';
-                            return;
-                        }
-
                         const data = await response.json();
-
-                        if (data.accessToken) {
-                            window.location.href = '/chat';
-                        } else {
-                            document.getElementById('errorBox').style.display = 'block';
-                        }
-
-                    } catch (err) {
-                        console.error('Ошибка запроса:', err);
-                        document.getElementById('errorBox').style.display = 'block';
+                        message = collectErrorMessage(data) || message;
+                    } catch {
+                        // ignore
                     }
-                });
 
-            ['email', 'password'].forEach(id => {
-                document.getElementById(id).addEventListener('input', function () {
-                    document.getElementById('errorBox').style.display = 'none';
-                });
+                    errorBox.textContent = message;
+                    errorBox.style.display = 'block';
+                    return;
+                }
+
+                window.location.href = '/chat';
+
+            } catch (err) {
+                console.error('Ошибка запроса:', err);
+                errorBox.textContent = 'Не удалось выполнить вход. Попробуйте ещё раз.';
+                errorBox.style.display = 'block';
+            }
+        });
+
+        [emailInput, passwordInput].forEach(input => {
+            input.addEventListener('input', function () {
+                errorBox.style.display = 'none';
             });
         });
-    </script>
+    });
+</script>
 </body>
 </html>

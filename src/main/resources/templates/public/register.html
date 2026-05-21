@@ -1,23 +1,48 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8"/>
-    <link rel="stylesheet" th:href="@{/styles/style.css}"/>
-    <link rel="icon" href="icons/favicon.ico" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="stylesheet" th:href="@{/styles/base.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/auth.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/chat.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
+    <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
+    <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
     <title>Регистрация</title>
 </head>
 <body>
 <div class="login-box">
     <div class="logo">sicelica</div>
+
     <form id="registrationForm">
-        <input id="username" class="input" type="text"
-               placeholder="имя пользователя" required/>
-        <input id="password" class="input" type="password"
-               placeholder="пароль" required/>
-        <input id="passwordConfirmation" class="input" type="password"
-               placeholder="повторите пароль" required/>
-        <input id="email" class="input" type="text"
-               placeholder="введите почту" required/>
+        <input id="username"
+               class="input"
+               type="text"
+               placeholder="имя пользователя"
+               autocomplete="username"
+               required/>
+
+        <input id="password"
+               class="input"
+               type="password"
+               placeholder="пароль"
+               autocomplete="new-password"
+               required/>
+
+        <input id="passwordConfirmation"
+               class="input"
+               type="password"
+               placeholder="повторите пароль"
+               autocomplete="new-password"
+               required/>
+
+        <input id="email"
+               class="input"
+               type="text"
+               placeholder="введите почту"
+               autocomplete="email"
+               required/>
 
         <button class="btn" id="registerBtn" type="submit">
             Зарегистрироваться
@@ -33,6 +58,7 @@
     document.getElementById('registrationForm')
         .addEventListener('submit', async function (e) {
             e.preventDefault();
+            clearError();
 
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
@@ -55,13 +81,12 @@
             }
 
             const btn = document.getElementById('registerBtn');
-            btn.disabled = true;
-            btn.textContent = 'Отправляем...';
+            setButtonState(btn, true, 'Отправляем...');
 
             try {
                 const response = await fetch('/api/v1/auth/register', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         username,
                         password,
@@ -70,25 +95,10 @@
                     })
                 });
 
-                const data = await response.json();
+                const data = await tryReadJson(response);
 
                 if (!response.ok) {
-
-                    if (data.error) {
-
-                        showError(data.error);
-                    } else {
-
-                        const validationMessages = Object.values(data);
-                        if (validationMessages.length > 0) {
-                            showError(validationMessages.join('\n'));
-                        } else {
-                            showError('Ошибка регистрации');
-                        }
-                    }
-
-                    btn.disabled = false;
-                    btn.textContent = 'Зарегистрироваться';
+                    showError(collectErrorMessage(data) || 'Ошибка регистрации');
                     return;
                 }
 
@@ -97,8 +107,8 @@
             } catch (error) {
                 console.error('Ошибка:', error);
                 showError('Ошибка сервера. Попробуйте позже.');
-                btn.disabled = false;
-                btn.textContent = 'Зарегистрироваться';
+            } finally {
+                setButtonState(btn, false, 'Зарегистрироваться');
             }
         });
 
@@ -106,8 +116,52 @@
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     }
 
+    function setButtonState(button, disabled, text) {
+        if (!button) return;
+        button.disabled = disabled;
+        button.textContent = text;
+    }
+
+    async function tryReadJson(response) {
+        try {
+            return await response.json();
+        } catch {
+            return null;
+        }
+    }
+
+    function collectErrorMessage(data) {
+        if (!data) return '';
+
+        if (typeof data === 'string') {
+            return data;
+        }
+
+        if (typeof data.message === 'string' && data.message.trim()) {
+            return data.message.trim();
+        }
+
+        if (typeof data.error === 'string' && data.error.trim()) {
+            return data.error.trim();
+        }
+
+        if (Array.isArray(data.errors) && data.errors.length > 0) {
+            return data.errors.filter(Boolean).join(', ');
+        }
+
+        if (typeof data === 'object') {
+            const values = Object.values(data).flat().filter(Boolean);
+            if (values.length > 0) {
+                return values.join(', ');
+            }
+        }
+
+        return '';
+    }
+
     function showError(message) {
         let errorDiv = document.getElementById('errorMessage');
+
         if (!errorDiv) {
             errorDiv = document.createElement('div');
             errorDiv.id = 'errorMessage';
@@ -115,13 +169,31 @@
             document.getElementById('registrationForm').prepend(errorDiv);
         }
 
-        errorDiv.innerHTML = message
+        errorDiv.innerHTML = '';
+
+        String(message)
             .split('\n')
-            .map(msg => `<div>• ${msg}</div>`)
-            .join('');
+            .filter(Boolean)
+            .forEach(msg => {
+                const line = document.createElement('div');
+                line.textContent = `• ${msg}`;
+                errorDiv.appendChild(line);
+            });
 
         errorDiv.style.display = 'block';
     }
+
+    function clearError() {
+        const errorDiv = document.getElementById('errorMessage');
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.innerHTML = '';
+        }
+    }
+
+    ['username', 'password', 'passwordConfirmation', 'email'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', clearError);
+    });
 </script>
 </body>
 </html>

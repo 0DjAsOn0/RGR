@@ -17,22 +17,39 @@ public class UserDto {
     @Size(min = 3, max = 30,
             message = "Никнейм должен быть от 3 до 30 символов",
             groups = {OnCreate.class, OnUpdate.class})
+    @Pattern(regexp = "^[a-zA-Z0-9_]+$",
+            message = "Никнейм может содержать только латинские буквы, цифры и _",
+            groups = {OnCreate.class, OnUpdate.class})
     private String username;
 
     @NotBlank(message = "Email не может быть пустым",
             groups = {OnCreate.class, OnUpdate.class})
     @Email(message = "Некорректный формат email",
             groups = {OnCreate.class, OnUpdate.class})
+    @Size(max = 255,
+            message = "Email слишком длинный",
+            groups = {OnCreate.class, OnUpdate.class})
     private String email;
 
     @NotBlank(message = "Пароль не может быть пустым",
             groups = OnCreate.class)
-    @Size(min = 6, max = 255,
-            message = "Пароль должен быть минимум 6 символов",
+    @Size(min = 6, max = 100,
+            message = "Пароль должен быть от 6 до 100 символов",
             groups = OnCreate.class)
     private String password;
 
     @NotBlank(message = "Подтверждение пароля не может быть пустым",
             groups = OnCreate.class)
     private String passwordConfirmation;
+
+    // ========================
+    // КАСТОМНАЯ ВАЛИДАЦИЯ
+    // ========================
+
+    @AssertTrue(message = "Пароли не совпадают",
+            groups = OnCreate.class)
+    public boolean isPasswordsMatch() {
+        if (password == null) return true;
+        return password.equals(passwordConfirmation);
+    }
 }

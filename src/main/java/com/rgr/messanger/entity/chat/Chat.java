@@ -13,11 +13,4 @@ public class Chat {
     private Long creatorId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private String lastMessage;
-    private String lastMessageType;
-    private LocalDateTime lastMessageTime;
-    private String interlocutorName;
-    private String interlocutorAvatar;
-    private Long interlocutorId;
-    private int unreadCount;
 }

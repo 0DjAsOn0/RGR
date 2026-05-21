@@ -3,194 +3,146 @@ package com.rgr.messanger.controller;
 import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.entity.message.Message;
 import com.rgr.messanger.entity.message.Status;
-import com.rgr.messanger.entity.user.User;
-import com.rgr.messanger.repository.AttachmentRepo;
-import com.rgr.messanger.repository.ChatRepo;
+import com.rgr.messanger.exception.AccessDeniedException;
+import com.rgr.messanger.service.ChatService;
 import com.rgr.messanger.service.MessageService;
-import com.rgr.messanger.service.UserService;
 import com.rgr.messanger.web.dto.message.MessageResponse;
+import com.rgr.messanger.web.security.JwtEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Controller;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
-@Controller
+@RestController
 @RequestMapping("/api/v1/messages")
 @RequiredArgsConstructor
 public class MessageController {
 
-    private final MessageService messageService;
-    private final ChatRepo chatRepo;
-    private final UserService userService;
-    private final AttachmentRepo attachmentRepo;
+    private final MessageService       messageService;
+    private final ChatService          chatService;
     private final SimpMessagingTemplate messagingTemplate;
 
     // ========================
     // ПОЛУЧИТЬ СООБЩЕНИЯ ЧАТА
     // ========================
     @GetMapping("/chat/{chatId}")
-    @ResponseBody
-    public ResponseEntity<?> getMessages(
+    public ResponseEntity<List<MessageResponse>> getMessages(
             @PathVariable Long chatId,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        log.info("getMessages called, chatId: {}, principal: {}", chatId, principal.getName());
-
-        User user = userService.getByUsername(principal.getName());
-        log.info("User found: {}", user.getUsername());
-
-        List<Message> messages = messageService.getByChatId(chatId);
-        log.info("Messages found: {}", messages.size());
-
-        List<Map<String, Object>> result = messages.stream().map(msg -> {
-            Map<String, Object> map = new java.util.LinkedHashMap<>();
-            map.put("id",          msg.getId());
-            map.put("chatId",      msg.getChatId());
-            map.put("senderId",    msg.getSenderId());
-            map.put("senderName",  msg.getSenderName());
-            map.put("replyToId",   msg.getReplyToId());
-            map.put("type",        msg.getType());
-            map.put("text",        msg.getText());
-            map.put("isEdited",    msg.isEdited());
-            map.put("isDeleted",   msg.isDeleted());
-            map.put("sendDate",    msg.getSendDate());
-            map.put("time",        msg.getSendDate() != null
-                    ? msg.getSendDate().toLocalTime()
-                      .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                    : "");
-            map.put("status",      msg.getStatus());
-            map.put("attachments", attachmentRepo.findByMessageId(msg.getId()));
-            return map;
-        }).toList();
-
-        return ResponseEntity.ok(result);
+        ensureMember(chatId, user.getId());
+        return ResponseEntity.ok(messageService.getResponsesByChatId(chatId));
     }
 
     // ========================
-    // ОТПРАВИТЬ СООБЩЕНИЕ (HTTP fallback)
+    // ОТПРАВИТЬ СООБЩЕНИЕ (HTTP fallback при отключённом WS)
     // ========================
     @PostMapping("/chat/{chatId}")
-    @ResponseBody
     public ResponseEntity<MessageResponse> sendMessage(
             @PathVariable Long chatId,
-            @RequestBody Map<String, String> body,
-            Principal principal
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
+        ensureMember(chatId, user.getId());
 
-        String content = body.get("content");
+        String content = body.get("content") != null
+                ? body.get("content").toString()
+                : null;
+
         if (content == null || content.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
 
-        try {
-            User me = userService.getByUsername(principal.getName());
+        Long replyToId = parseLong(body.get("replyToId"));
 
-            Message message = new Message();
-            message.setChatId(chatId);
-            message.setSenderId(me.getId());
-            message.setText(content);
-            message.setType("text");
-            message.setStatus(Status.SENDING);
+        Message message = new Message();
+        message.setChatId(chatId);
+        message.setSenderId(user.getId());
+        message.setText(content);
+        message.setType("text");
+        message.setReplyToId(replyToId);
+        message.setStatus(Status.SENT);
 
-            messageService.create(message, me.getId());
-            messageService.updateStatus(message.getId(), Status.SENT);
-            message.setStatus(Status.SENT);
+        messageService.create(message, user.getId());
 
-            MessageResponse response = MessageResponse.from(message);
+        MessageResponse response = MessageResponse.from(message);
+        messagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
 
-            messagingTemplate.convertAndSend(
-                    "/topic/chat/" + chatId,
-                    response
-            );
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Error sending message: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
-        }
+        return ResponseEntity.ok(response);
     }
 
     // ========================
-    // ОТМЕТИТЬ КАК ПРОЧИТАННОЕ (HTTP)
+    // ОТМЕТИТЬ ОДНО СООБЩЕНИЕ КАК ПРОЧИТАННОЕ
     // ========================
     @PostMapping("/{messageId}/read")
-    @ResponseBody
     public ResponseEntity<Void> markRead(
             @PathVariable Long messageId,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
+        Message message = messageService.getById(messageId);
+        ensureMember(message.getChatId(), user.getId());
 
-        try {
-            messageService.updateStatus(messageId, Status.READ);
-            return ResponseEntity.ok().build();
-
-        } catch (Exception e) {
-            log.error("Error marking as read: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
-        }
-    }
-
-    // ========================
-    // СОЗДАТЬ ИЛИ НАЙТИ ПРИВАТНЫЙ ЧАТ
-    // ========================
-    @PostMapping("/private/{userId}")
-    @ResponseBody
-    public ResponseEntity<Map<String, Long>> getOrCreatePrivateChat(
-            @PathVariable Long userId,
-            Principal principal
-    ) {
-        if (principal == null) return ResponseEntity.status(401).build();
-
-        try {
-            User me = userService.getByUsername(principal.getName());
-
-            Optional<Chat> existing = chatRepo.findPrivateChat(me.getId(), userId);
-            if (existing.isPresent()) {
-                return ResponseEntity.ok(Map.of("chatId", existing.get().getId()));
-            }
-
-            Long chatId = chatRepo.createPrivateChat(me.getId());
-            chatRepo.addMember(chatId, me.getId());
-            chatRepo.addMember(chatId, userId);
-
-            return ResponseEntity.ok(Map.of("chatId", chatId));
-
-        } catch (Exception e) {
-            log.error("Error creating chat: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
-        }
+        messageService.updateStatus(messageId, Status.READ);
+        return ResponseEntity.ok().build();
     }
 
     // ========================
     // ОТМЕТИТЬ ВСЕ СООБЩЕНИЯ ЧАТА КАК ПРОЧИТАННЫЕ
     // ========================
     @PostMapping("/chat/{chatId}/read")
-    @ResponseBody
     public ResponseEntity<Void> markChatAsRead(
             @PathVariable Long chatId,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
+        ensureMember(chatId, user.getId());
+        messageService.markChatAsRead(chatId, user.getId());
+        return ResponseEntity.ok().build();
+    }
 
+    // ========================
+    // СОЗДАТЬ ИЛИ НАЙТИ ПРИВАТНЫЙ ЧАТ
+    // ========================
+    @PostMapping("/private/{userId}")
+    public ResponseEntity<Map<String, Long>> getOrCreatePrivateChat(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal JwtEntity user
+    ) {
+        Optional<Chat> existing = chatService.findPrivateChat(user.getId(), userId);
+        if (existing.isPresent()) {
+            return ResponseEntity.ok(Map.of("chatId", existing.get().getId()));
+        }
+
+        Long chatId = chatService.createPrivateChat(user.getId());
+        chatService.addMember(chatId, user.getId());
+        if (!userId.equals(user.getId())) {
+            chatService.addMember(chatId, userId);
+        }
+        return ResponseEntity.ok(Map.of("chatId", chatId));
+    }
+
+    // ========================
+    // ХЕЛПЕРЫ
+    // ========================
+
+    private void ensureMember(Long chatId, Long userId) {
+        if (!chatService.isMember(chatId, userId)) {
+            throw new AccessDeniedException("Вы не являетесь участником чата");
+        }
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) return null;
         try {
-            User me = userService.getByUsername(principal.getName());
-            messageService.markChatAsRead(chatId, me.getId());
-            return ResponseEntity.ok().build();
-
-        } catch (Exception e) {
-            log.error("Error marking chat as read: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

@@ -2,7 +2,9 @@ package com.rgr.messanger.repository.impl;
 
 import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.repository.ChatRepo;
+import com.rgr.messanger.web.dto.chat.ChatDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -17,128 +19,272 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ChatRepoImpl implements ChatRepo {
 
+    private static final String NOTES_CHAT_NAME = "Заметки";
+    private static final String ROLE_OWNER = "owner";
+    private static final String ROLE_MEMBER = "member";
+
     private final JdbcTemplate jdbcTemplate;
 
-    // ========================
-    // ВСЕ ЧАТЫ ПОЛЬЗОВАТЕЛЯ
-    // ========================
     private static final String FIND_BY_USER_ID = """
         SELECT
-            c.id               as chat_id,
-            c.type             as chat_type,
-            c.name             as chat_name,
-            c.avatar_url       as chat_avatar_url,
-            c.updated_at       as chat_updated_at,
-            m.text             as last_message_text,
-            m.type             as last_message_type,
-            m.send_date        as last_message_time,
-            CASE WHEN c.type = 'private' THEN u.id         ELSE NULL END as interlocutor_id,
-            CASE WHEN c.type = 'private' THEN u.username   ELSE NULL END as interlocutor_name,
-            CASE WHEN c.type = 'private' THEN u.avatar_url ELSE NULL END as interlocutor_avatar,
-            COUNT(unread.id)   as unread_count
+            c.id AS chat_id,
+            c.type AS chat_type,
+            c.name AS chat_name,
+            c.avatar_url AS chat_avatar_url,
+            c.created_at AS chat_created_at,
+            c.updated_at AS chat_updated_at,
+
+            m.text AS last_message_text,
+            m.type AS last_message_type,
+            m.send_date AS last_message_time,
+
+            CASE
+                WHEN c.type = 'private' AND other_user.id IS NOT NULL THEN other_user.id
+                ELSE NULL
+            END AS interlocutor_id,
+
+            CASE
+                WHEN c.type = 'private' AND other_user.username IS NOT NULL THEN other_user.username
+                ELSE NULL
+            END AS interlocutor_name,
+
+            CASE
+                WHEN c.type = 'private' AND other_user.avatar_url IS NOT NULL THEN other_user.avatar_url
+                ELSE NULL
+            END AS interlocutor_avatar,
+
+            COUNT(unread.id) AS unread_count,
+
+            CASE
+                WHEN c.type = 'private'
+                     AND c.name = ?
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM chat_members cmx
+                         WHERE cmx.chat_id = c.id
+                           AND cmx.user_id <> ?
+                     )
+                THEN TRUE
+                ELSE FALSE
+            END AS is_notes
+
         FROM chats c
-        JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = ?
-        LEFT JOIN chat_members cm2 ON cm2.chat_id = c.id
-            AND cm2.user_id != ?
-            AND c.type = 'private'
-        LEFT JOIN users u ON u.id = cm2.user_id
-        LEFT JOIN messages m ON m.id = (
-            SELECT id FROM messages
-            WHERE chat_id = c.id AND is_deleted = FALSE
-            ORDER BY send_date DESC
-            LIMIT 1
-        )
-        LEFT JOIN messages unread ON unread.chat_id = c.id
-            AND unread.sender_id != ?
-            AND unread.is_deleted = FALSE
-            AND unread.id > COALESCE((
-                SELECT last_read_msg FROM message_reads
-                WHERE chat_id = c.id AND user_id = ?
-            ), 0)
-        GROUP BY c.id, c.type, c.name, c.avatar_url, c.updated_at,
-                 m.text, m.type, m.send_date,
-                 u.id, u.username, u.avatar_url
+        JOIN chat_members cm
+            ON cm.chat_id = c.id
+           AND cm.user_id = ?
+
+        LEFT JOIN users other_user
+            ON other_user.id = (
+                SELECT cm2.user_id
+                FROM chat_members cm2
+                WHERE cm2.chat_id = c.id
+                  AND cm2.user_id <> ?
+                LIMIT 1
+            )
+
+        LEFT JOIN messages m
+            ON m.id = (
+                SELECT m2.id
+                FROM messages m2
+                WHERE m2.chat_id = c.id
+                  AND m2.is_deleted = FALSE
+                ORDER BY m2.send_date DESC
+                LIMIT 1
+            )
+
+        LEFT JOIN messages unread
+            ON unread.chat_id = c.id
+           AND unread.sender_id <> ?
+           AND unread.is_deleted = FALSE
+           AND unread.id > COALESCE((
+                SELECT mr.last_read_msg
+                FROM message_reads mr
+                WHERE mr.chat_id = c.id
+                  AND mr.user_id = ?
+           ), 0)
+
+        GROUP BY
+            c.id, c.type, c.name, c.avatar_url, c.created_at, c.updated_at,
+            m.text, m.type, m.send_date,
+            other_user.id, other_user.username, other_user.avatar_url
+
         ORDER BY
-            CASE WHEN c.name = 'Заметки' THEN 0 ELSE 1 END,
+            is_notes DESC,
             COALESCE(m.send_date, c.created_at) DESC
         """;
 
     @Override
-    public List<Chat> findByUserId(Long userId) {
+    public List<ChatDto> findByUserId(Long userId) {
         return jdbcTemplate.query(
                 FIND_BY_USER_ID,
                 (rs, rowNum) -> {
-                    Chat chat = new Chat();
-                    chat.setId(rs.getLong("chat_id"));
-                    chat.setType(rs.getString("chat_type"));
-                    chat.setName(rs.getString("chat_name"));
-                    chat.setAvatarUrl(rs.getString("chat_avatar_url"));
-                    chat.setLastMessage(rs.getString("last_message_text"));
-                    chat.setLastMessageType(rs.getString("last_message_type"));
-                    chat.setInterlocutorId(rs.getLong("interlocutor_id"));
-                    chat.setInterlocutorName(rs.getString("interlocutor_name"));
-                    chat.setInterlocutorAvatar(rs.getString("interlocutor_avatar"));
-                    chat.setUnreadCount(rs.getInt("unread_count"));
+                    ChatDto dto = new ChatDto();
+                    dto.setId(rs.getLong("chat_id"));
+                    dto.setType(rs.getString("chat_type"));
+                    dto.setName(rs.getString("chat_name"));
+                    dto.setAvatarUrl(rs.getString("chat_avatar_url"));
+
+                    dto.setLastMessage(rs.getString("last_message_text"));
+                    dto.setLastMessageType(rs.getString("last_message_type"));
+
+                    dto.setInterlocutorId(rs.getObject("interlocutor_id", Long.class));
+                    dto.setInterlocutorName(rs.getString("interlocutor_name"));
+                    dto.setInterlocutorAvatar(rs.getString("interlocutor_avatar"));
+
+                    dto.setUnreadCount(rs.getInt("unread_count"));
 
                     Timestamp lastTime = rs.getTimestamp("last_message_time");
                     if (lastTime != null) {
-                        chat.setLastMessageTime(lastTime.toLocalDateTime());
+                        dto.setLastMessageTime(lastTime.toLocalDateTime());
                     }
-                    return chat;
+
+                    Boolean isNotes = rs.getObject("is_notes", Boolean.class);
+                    if (Boolean.TRUE.equals(isNotes)) {
+                        dto.setType("notes");
+                        dto.setName(NOTES_CHAT_NAME);
+                        dto.setInterlocutorId(null);
+                        dto.setInterlocutorName(null);
+                        dto.setInterlocutorAvatar(null);
+                    }
+
+                    return dto;
                 },
-                userId, userId, userId, userId
+                NOTES_CHAT_NAME, userId, userId, userId, userId, userId
         );
     }
 
-    // ========================
-    // ЗАМЕТКИ
-    // ========================
-    private static final String CREATE_NOTES_CHAT = """
-            WITH new_chat AS (
-                INSERT INTO chats (type, name, creator_id)
-                VALUES ('private', 'Заметки', ?)
-                RETURNING id
-            )
-            INSERT INTO chat_members (chat_id, user_id, role)
-            SELECT id, ?, 'owner'
-            FROM new_chat
-            """;
+    private static final String FIND_BY_ID = """
+        SELECT id         AS chat_id,
+               type       AS chat_type,
+               name       AS chat_name,
+               avatar_url AS chat_avatar_url,
+               creator_id AS chat_creator_id,
+               created_at AS chat_created_at,
+               updated_at AS chat_updated_at
+        FROM chats
+        WHERE id = ?
+        """;
 
     @Override
-    public void createNotesChat(Long userId) {
-        jdbcTemplate.update(CREATE_NOTES_CHAT, userId, userId);
+    public Optional<Chat> findById(Long chatId) {
+        List<Chat> result = jdbcTemplate.query(
+                FIND_BY_ID,
+                (rs, rowNum) -> mapChat(rs),
+                chatId
+        );
+        return result.stream().findFirst();
     }
 
-    // ========================
-    // НАЙТИ ПРИВАТНЫЙ ЧАТ
-    // ========================
     private static final String FIND_PRIVATE_CHAT = """
-            SELECT c.id as chat_id
-            FROM chats c
-            JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = ?
-            JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id = ?
-            WHERE c.type = 'private'
-              AND cm1.user_id != cm2.user_id
-            LIMIT 1
-            """;
+        SELECT c.id         AS chat_id,
+               c.type       AS chat_type,
+               c.name       AS chat_name,
+               c.avatar_url AS chat_avatar_url,
+               c.creator_id AS chat_creator_id,
+               c.created_at AS chat_created_at,
+               c.updated_at AS chat_updated_at
+        FROM chats c
+        WHERE c.type = 'private'
+          AND EXISTS (
+              SELECT 1 FROM chat_members
+              WHERE chat_id = c.id AND user_id = ?
+          )
+          AND EXISTS (
+              SELECT 1 FROM chat_members
+              WHERE chat_id = c.id AND user_id = ?
+          )
+          AND (
+              SELECT COUNT(*) FROM chat_members WHERE chat_id = c.id
+          ) = CASE WHEN ? = ? THEN 1 ELSE 2 END
+        LIMIT 1
+        """;
 
     @Override
     public Optional<Chat> findPrivateChat(Long userId1, Long userId2) {
         List<Chat> result = jdbcTemplate.query(
                 FIND_PRIVATE_CHAT,
-                (rs, rowNum) -> {
-                    Chat chat = new Chat();
-                    chat.setId(rs.getLong("chat_id"));
-                    return chat;
-                },
-                userId1, userId2
+                (rs, rowNum) -> mapChat(rs),
+                userId1, userId2, userId1, userId2
         );
         return result.stream().findFirst();
     }
 
-    // ========================
-    // ПОЛУЧИТЬ ID УЧАСТНИКОВ
-    // ========================
+    private static final String CREATE_PRIVATE_CHAT = """
+        INSERT INTO chats (type, creator_id)
+        VALUES ('private', ?)
+        """;
+
+    @Override
+    public Long createPrivateChat(Long creatorId) {
+        return insertAndGetId(connection -> {
+            PreparedStatement stmt = connection.prepareStatement(
+                    CREATE_PRIVATE_CHAT, new String[]{"id"}
+            );
+            stmt.setLong(1, creatorId);
+            return stmt;
+        });
+    }
+
+    private static final String CREATE_NOTES_CHAT = """
+        INSERT INTO chats (type, name, creator_id)
+        VALUES ('private', ?, ?)
+        """;
+
+    @Override
+    public Long createNotesChat(Long userId) {
+        Long chatId = insertAndGetId(connection -> {
+            PreparedStatement stmt = connection.prepareStatement(
+                    CREATE_NOTES_CHAT, new String[]{"id"}
+            );
+            stmt.setString(1, NOTES_CHAT_NAME);
+            stmt.setLong(2, userId);
+            return stmt;
+        });
+        addMemberWithRole(chatId, userId, ROLE_OWNER);
+        return chatId;
+    }
+
+    private static final String CREATE_GROUP_CHAT = """
+        INSERT INTO chats (type, name, creator_id)
+        VALUES ('group', ?, ?)
+        """;
+
+    @Override
+    public Long createGroupChat(String name, Long creatorId) {
+        return insertAndGetId(connection -> {
+            PreparedStatement stmt = connection.prepareStatement(
+                    CREATE_GROUP_CHAT, new String[]{"id"}
+            );
+            stmt.setString(1, name);
+            stmt.setLong(2, creatorId);
+            return stmt;
+        });
+    }
+
+    private static final String UPDATE_CHAT = """
+        UPDATE chats
+        SET name       = COALESCE(?, name),
+            avatar_url = COALESCE(?, avatar_url),
+            updated_at = NOW()
+        WHERE id = ?
+        """;
+
+    @Override
+    public void updateChat(Long chatId, String name, String avatarUrl) {
+        String safeName = isBlank(name) ? null : name;
+        String safeAvatar = isBlank(avatarUrl) ? null : avatarUrl;
+        jdbcTemplate.update(UPDATE_CHAT, safeName, safeAvatar, chatId);
+    }
+
+    private static final String DELETE_CHAT = """
+        DELETE FROM chats WHERE id = ?
+        """;
+
+    @Override
+    public void deleteChat(Long chatId) {
+        jdbcTemplate.update(DELETE_CHAT, chatId);
+    }
+
     private static final String GET_CHAT_MEMBER_IDS = """
         SELECT user_id FROM chat_members
         WHERE chat_id = ?
@@ -153,125 +299,35 @@ public class ChatRepoImpl implements ChatRepo {
         );
     }
 
-    // ========================
-    // СОЗДАТЬ ПРИВАТНЫЙ ЧАТ
-    // ========================
-    private static final String CREATE_CHAT = """
-            INSERT INTO chats (type, creator_id)
-            VALUES ('private', ?)
-            """;
+    private static final String IS_MEMBER = """
+        SELECT COUNT(1) FROM chat_members
+        WHERE chat_id = ? AND user_id = ?
+        """;
 
     @Override
-    public Long createPrivateChat(Long creatorId) {
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-
-        jdbcTemplate.update(connection -> {
-            PreparedStatement stmt = connection.prepareStatement(
-                    CREATE_CHAT, PreparedStatement.RETURN_GENERATED_KEYS
-            );
-            stmt.setLong(1, creatorId);
-            return stmt;
-        }, keyHolder);
-
-        return ((Number) keyHolder.getKeys().get("id")).longValue();
+    public boolean isMember(Long chatId, Long userId) {
+        Integer count = jdbcTemplate.queryForObject(
+                IS_MEMBER, Integer.class, chatId, userId
+        );
+        return count != null && count > 0;
     }
 
-    // ========================
-    // ДОБАВИТЬ УЧАСТНИКА
-    // ========================
-    private static final String ADD_MEMBER = """
-            INSERT INTO chat_members (chat_id, user_id)
-            VALUES (?, ?)
-            ON CONFLICT DO NOTHING
-            """;
+    private static final String ADD_MEMBER_WITH_ROLE = """
+        INSERT INTO chat_members (chat_id, user_id, role)
+        VALUES (?, ?, ?)
+        ON CONFLICT (chat_id, user_id) DO NOTHING
+        """;
 
     @Override
     public void addMember(Long chatId, Long userId) {
-        jdbcTemplate.update(ADD_MEMBER, chatId, userId);
+        addMemberWithRole(chatId, userId, ROLE_MEMBER);
     }
-
-    // ========================
-    // НАЙТИ ЧАТ ПО ID
-    // ========================
-    private static final String FIND_BY_ID = """
-            SELECT id         as chat_id,
-                   type       as chat_type,
-                   name       as chat_name,
-                   avatar_url as chat_avatar_url
-            FROM chats
-            WHERE id = ?
-            """;
 
     @Override
-    public Optional<Chat> findById(Long chatId) {
-        List<Chat> result = jdbcTemplate.query(
-                FIND_BY_ID,
-                (rs, rowNum) -> {
-                    Chat chat = new Chat();
-                    chat.setId(rs.getLong("chat_id"));
-                    chat.setType(rs.getString("chat_type"));
-                    chat.setName(rs.getString("chat_name"));
-                    chat.setAvatarUrl(rs.getString("chat_avatar_url"));
-                    return chat;
-                },
-                chatId
-        );
-        return result.stream().findFirst();
+    public void addMemberWithRole(Long chatId, Long userId, String role) {
+        jdbcTemplate.update(ADD_MEMBER_WITH_ROLE, chatId, userId, role);
     }
 
-    // ========================
-    // СОЗДАТЬ ГРУППУ
-    // ========================
-    private static final String CREATE_GROUP_CHAT = """
-        INSERT INTO chats (type, name, creator_id)
-        VALUES ('group', ?, ?)
-        """;
-
-    @Override
-    public Long createGroupChat(String name, Long creatorId) {
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement stmt = connection.prepareStatement(
-                    CREATE_GROUP_CHAT, PreparedStatement.RETURN_GENERATED_KEYS
-            );
-            stmt.setString(1, name);
-            stmt.setLong(2, creatorId);
-            return stmt;
-        }, keyHolder);
-        return ((Number) keyHolder.getKeys().get("id")).longValue();
-    }
-
-    // ========================
-    // ОБНОВИТЬ ЧАТ
-    // ========================
-    private static final String UPDATE_CHAT = """
-        UPDATE chats
-        SET name       = COALESCE(?, name),
-            avatar_url = COALESCE(?, avatar_url),
-            updated_at = NOW()
-        WHERE id = ?
-        """;
-
-    @Override
-    public void updateChat(Long chatId, String name, String avatarUrl) {
-        jdbcTemplate.update(UPDATE_CHAT, name, avatarUrl, chatId);
-    }
-
-    // ========================
-    // УДАЛИТЬ ЧАТ
-    // ========================
-    private static final String DELETE_CHAT = """
-        DELETE FROM chats WHERE id = ?
-        """;
-
-    @Override
-    public void deleteChat(Long chatId) {
-        jdbcTemplate.update(DELETE_CHAT, chatId);
-    }
-
-    // ========================
-    // УДАЛИТЬ УЧАСТНИКА
-    // ========================
     private static final String REMOVE_MEMBER = """
         DELETE FROM chat_members
         WHERE chat_id = ? AND user_id = ?
@@ -282,35 +338,57 @@ public class ChatRepoImpl implements ChatRepo {
         jdbcTemplate.update(REMOVE_MEMBER, chatId, userId);
     }
 
-    // ========================
-    // РОЛЬ УЧАСТНИКА
-    // ========================
     private static final String GET_MEMBER_ROLE = """
         SELECT role FROM chat_members
         WHERE chat_id = ? AND user_id = ?
         """;
 
     @Override
-    public String getMemberRole(Long chatId, Long userId) {
-        List<String> result = jdbcTemplate.query(
-                GET_MEMBER_ROLE,
-                (rs, rowNum) -> rs.getString("role"),
-                chatId, userId
-        );
-        return result.isEmpty() ? null : result.get(0);
+    public Optional<String> getMemberRole(Long chatId, Long userId) {
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    GET_MEMBER_ROLE, String.class, chatId, userId
+            ));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
     }
 
-    // ========================
-    // ДОБАВИТЬ УЧАСТНИКА С РОЛЬЮ
-    // ========================
-    private static final String ADD_MEMBER_WITH_ROLE = """
-        INSERT INTO chat_members (chat_id, user_id, role)
-        VALUES (?, ?, ?)
-        ON CONFLICT (chat_id, user_id) DO NOTHING
-        """;
+    private Chat mapChat(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Chat chat = new Chat();
+        chat.setId(rs.getLong("chat_id"));
+        chat.setType(rs.getString("chat_type"));
+        chat.setName(rs.getString("chat_name"));
+        chat.setAvatarUrl(rs.getString("chat_avatar_url"));
+        chat.setCreatorId(rs.getObject("chat_creator_id", Long.class));
 
-    @Override
-    public void addMemberWithRole(Long chatId, Long userId, String role) {
-        jdbcTemplate.update(ADD_MEMBER_WITH_ROLE, chatId, userId, role);
+        Timestamp createdAt = rs.getTimestamp("chat_created_at");
+        if (createdAt != null) {
+            chat.setCreatedAt(createdAt.toLocalDateTime());
+        }
+
+        Timestamp updatedAt = rs.getTimestamp("chat_updated_at");
+        if (updatedAt != null) {
+            chat.setUpdatedAt(updatedAt.toLocalDateTime());
+        }
+
+        return chat;
+    }
+
+    private Long insertAndGetId(
+            org.springframework.jdbc.core.PreparedStatementCreator psc
+    ) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(psc, keyHolder);
+
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Failed to retrieve generated id");
+        }
+        return key.longValue();
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 }

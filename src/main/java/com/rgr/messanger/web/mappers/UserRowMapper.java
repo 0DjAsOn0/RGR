@@ -2,52 +2,78 @@ package com.rgr.messanger.web.mappers;
 
 import com.rgr.messanger.entity.user.Role;
 import com.rgr.messanger.entity.user.User;
-import lombok.SneakyThrows;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.HashSet;
 import java.util.Set;
 
-public class UserRowMapper {
+public final class UserRowMapper {
 
-    @SneakyThrows
-    public static User mapRow(ResultSet resultSet) {
+    private UserRowMapper() {}
 
-        if (!resultSet.next()) {
-            return null;
-        }
-
-        User user = new User();
-        user.setId(resultSet.getLong("user_id"));
-        user.setUsername(resultSet.getString("user_username"));
-        user.setEmail(resultSet.getString("user_email"));
-        user.setEmailVerified(resultSet.getBoolean("user_email_verified"));
-        user.setEmailNotifications(resultSet.getBoolean("user_email_notifications"));
-        user.setPassword(resultSet.getString("user_password"));
-        user.setAvatarUrl(resultSet.getString("user_avatar_url"));
-        user.setStatus(resultSet.getString("user_status"));
-
-
-        Timestamp lastSeen = resultSet.getTimestamp("user_last_seen");
-        if (lastSeen != null) {
-            user.setLastSeen(lastSeen.toLocalDateTime());
-        }
-
+    /**
+     * ResultSetExtractor — для запросов с LEFT JOIN user_roles.
+     * Агрегирует все роли одного юзера в Set.
+     */
+    public static User mapRow(ResultSet rs) throws SQLException {
+        User user = null;
         Set<Role> roles = new HashSet<>();
-        String role = resultSet.getString("user_role");
-        if (role != null) {
-            roles.add(Role.valueOf(role));
-        }
 
-        while (resultSet.next()) {
-            String nextRole = resultSet.getString("user_role");
-            if (nextRole != null) {
-                roles.add(Role.valueOf(nextRole));
+        while (rs.next()) {
+            long currentId = rs.getLong("user_id");
+
+            if (user == null) {
+                user = mapUserFields(rs);
+            } else if (user.getId() != currentId) {
+                // защита: SQL вернул нескольких юзеров — обрабатываем только первого
+                break;
+            }
+
+            String role = rs.getString("user_role");
+            if (role != null) {
+                try {
+                    roles.add(Role.valueOf(role));
+                } catch (IllegalArgumentException e) {
+                    // неизвестная роль в БД — игнорируем
+                }
             }
         }
 
-        user.setRoles(roles);
+        if (user != null) {
+            user.setRoles(roles);
+        }
+        return user;
+    }
+
+    /**
+     * Базовый маппинг одной строки.
+     * Используется для поиска (без ролей).
+     */
+    public static User mapBasicRow(ResultSet rs) throws SQLException {
+        return mapUserFields(rs);
+    }
+
+    private static User mapUserFields(ResultSet rs) throws SQLException {
+        User user = new User();
+        user.setId(rs.getLong("user_id"));
+        user.setUsername(rs.getString("user_username"));
+        user.setEmail(rs.getString("user_email"));
+        user.setEmailVerified(rs.getBoolean("user_email_verified"));
+        user.setEmailNotifications(rs.getBoolean("user_email_notifications"));
+        user.setPassword(rs.getString("user_password"));
+        user.setAvatarUrl(rs.getString("user_avatar_url"));
+        user.setStatus(rs.getString("user_status"));
+
+        Timestamp lastSeen = rs.getTimestamp("user_last_seen");
+        if (lastSeen != null) user.setLastSeen(lastSeen.toLocalDateTime());
+
+        Timestamp createdAt = rs.getTimestamp("user_created_at");
+        if (createdAt != null) user.setCreatedAt(createdAt.toLocalDateTime());
+
+        Timestamp updatedAt = rs.getTimestamp("user_updated_at");
+        if (updatedAt != null) user.setUpdatedAt(updatedAt.toLocalDateTime());
 
         return user;
     }

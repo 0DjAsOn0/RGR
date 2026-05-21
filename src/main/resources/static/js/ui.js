@@ -1,6 +1,11 @@
-import { escapeHtml }        from './utils.js';
+import { escapeHtml } from './utils.js';
 import { fetchChats, searchUsers as apiSearchUsers, fetchOrCreateChat } from './api.js';
-import { openChat }          from './app.js';
+import { openChat, state } from './app.js';
+
+const DEFAULT_AVATAR = 'avatars/default.png';
+
+let searchTimeout = null;
+let searchRequestId = 0;
 
 // ========================
 // СПИСОК ЧАТОВ
@@ -17,76 +22,82 @@ export async function loadChats() {
     }
 }
 
-// определяем превью последнего сообщения
 function getLastMessagePreview(chat) {
     const text = chat.lastMessage;
     const type = chat.lastMessageType;
 
     if (text && text.trim()) return escapeHtml(text);
 
-    // Нет текста — смотрим на тип
     switch (type) {
         case 'image':
-        case 'images': return '🖼 Фото';
-        case 'video':  return '🎥 Видео';
-        case 'audio':  return '🎵 Аудио';
-        case 'file':   return '📎 Файл';
+        case 'images':
+            return '🖼 Фото';
+        case 'video':
+            return '🎥 Видео';
+        case 'audio':
+            return '🎵 Аудио';
+        case 'file':
+            return '📎 Файл';
         default:
-            // Если тип неизвестен но нет текста — проверяем attachments
             if (chat.hasAttachment) return '📎 Вложение';
             return 'Нет сообщений';
     }
+}
+
+function normalizeChatType(chat) {
+    if (chat.type === 'notes') return 'notes';
+    if (chat.type === 'group') return 'group';
+    if (chat.name === 'Заметки' && !chat.interlocutorId) return 'notes';
+    return 'private';
 }
 
 export function renderChatList(chats) {
     const container = document.getElementById('chatsContainer');
     if (!container) return;
 
-    if (chats.length === 0) {
+    if (!chats || chats.length === 0) {
         container.innerHTML = '<li class="no-chats">Нет чатов</li>';
         return;
     }
 
     container.innerHTML = chats.map(chat => {
+        const chatType = normalizeChatType(chat);
+        const isNotes = chatType === 'notes';
+        const isGroup = chatType === 'group';
 
-        const isNotes = chat.name === 'Заметки' && !chat.interlocutorId;
-        const isGroup = chat.type === 'group' && chat.name !== 'Заметки';
-
-        const name = isNotes
+        const rawName = isNotes
             ? 'Заметки'
             : isGroup
-                ? escapeHtml(chat.name)
-                : escapeHtml(chat.interlocutorName ?? chat.name ?? 'Чат');
+                ? (chat.name ?? 'Группа')
+                : (chat.interlocutorName ?? chat.name ?? 'Чат');
 
+        const escapedName = escapeHtml(rawName);
         const avatar = (isNotes || isGroup)
             ? null
-            : (chat.interlocutorAvatar ?? '/avatars/avatar.png');
+            : (chat.interlocutorAvatar ?? DEFAULT_AVATAR);
 
-        // превью последнего сообщения
         const preview = getLastMessagePreview(chat);
 
         return `
             <li class="card"
                 data-chat-id="${chat.id}"
                 data-user-id="${chat.interlocutorId ?? ''}"
-                data-user-name="${name}"
-                data-user-avatar="${avatar ?? ''}"
-                data-chat-type="${chat.type ?? 'private'}">
+                data-user-name="${escapeHtml(rawName)}"
+                data-user-avatar="${escapeHtml(avatar ?? '')}"
+                data-chat-type="${chatType}">
                 <div class="chat-card">
                     <div class="avatar">
                         ${isNotes
             ? `<div class="notes-avatar">📝</div>`
             : isGroup
                 ? `<div class="notes-avatar">👥</div>`
-                : `<img class="avatar-img" src="${avatar}" alt="">`
+                : `<img class="avatar-img" src="${escapeHtml(avatar)}" alt="">`
         }
                     </div>
                     <div class="card-content">
                         <div class="name-time">
-                            <span class="user-name">${name}</span>
-                            <time class="message-time">
-                                ${chat.lastMessageTime ?? ''}
-                            </time>
+                            <span class="user-name">${escapedName}</span>
+                            <time class="message-time">${chat.lastMessageTime ?? ''}</time>
                         </div>
                         <div class="message-preview">
                             <span class="user-message">${preview}</span>
@@ -106,39 +117,54 @@ export function renderChatList(chats) {
 // ПОИСК
 // ========================
 
-let searchTimeout = null;
-
 export function handleSearch(value) {
     clearTimeout(searchTimeout);
 
-    const searchResults  = document.getElementById('searchResults');
+    const searchResults = document.getElementById('searchResults');
     const chatsContainer = document.getElementById('chatsContainer');
 
-    if (value.length < 2) {
-        searchResults.style.display  = 'none';
-        searchResults.innerHTML      = '';
+    if (!searchResults || !chatsContainer) return;
+
+    const query = value?.trim() ?? '';
+
+    if (query.length < 2) {
+        searchResults.style.display = 'none';
+        searchResults.innerHTML = '';
         chatsContainer.style.display = 'block';
         return;
     }
 
     searchTimeout = setTimeout(async () => {
-        await doSearch(value);
+        await doSearch(query);
     }, 400);
 }
 
 async function doSearch(query) {
-    const searchResults  = document.getElementById('searchResults');
+    const currentRequestId = ++searchRequestId;
+
+    const searchResults = document.getElementById('searchResults');
     const chatsContainer = document.getElementById('chatsContainer');
 
+    if (!searchResults || !chatsContainer) return;
+
     try {
-        searchResults.style.display  = 'block';
-        searchResults.innerHTML      = '<li class="search-loading">Поиск...</li>';
+        searchResults.style.display = 'block';
+        searchResults.innerHTML = '<li class="search-loading">Поиск...</li>';
         chatsContainer.style.display = 'none';
 
         const users = await apiSearchUsers(query);
+
+        if (currentRequestId !== searchRequestId) {
+            return;
+        }
+
         renderSearchResults(users);
 
     } catch (error) {
+        if (currentRequestId !== searchRequestId) {
+            return;
+        }
+
         console.error('Ошибка поиска:', error);
         searchResults.innerHTML = '<li class="search-error">Ошибка поиска</li>';
     }
@@ -146,70 +172,96 @@ async function doSearch(query) {
 
 export function renderSearchResults(users) {
     const searchResults = document.getElementById('searchResults');
+    if (!searchResults) return;
 
-    if (users.length === 0) {
-        searchResults.innerHTML = `<li class="no-results">Пользователи не найдены</li>`;
+    if (!users || users.length === 0) {
+        searchResults.innerHTML = '<li class="no-results">Пользователи не найдены</li>';
         return;
     }
 
-    searchResults.innerHTML = users.map(user => `
-        <li class="card search-card"
-            data-user-id="${user.id}"
-            data-user-name="${escapeHtml(user.username)}"
-            data-user-avatar="${user.avatarUrl ?? '/avatars/avatar.png'}">
-            <div class="chat-card">
-                <div class="avatar">
-                    <img class="avatar-img"
-                         src="${user.avatarUrl ?? '/avatars/avatar.png'}"
-                         alt="">
-                </div>
-                <div class="card-content">
-                    <div class="name-time">
-                        <span class="user-name">${escapeHtml(user.username)}</span>
-                        <span class="user-status-badge ${user.status === 'online' ? 'online' : ''}">
-                            ${user.status === 'online' ? 'в сети' : ''}
-                        </span>
+    searchResults.innerHTML = users.map(user => {
+        const username = user.username ?? 'Пользователь';
+        const avatarUrl = user.avatarUrl ?? DEFAULT_AVATAR;
+
+        return `
+            <li class="card search-card"
+                data-user-id="${user.id}"
+                data-user-name="${escapeHtml(username)}"
+                data-user-avatar="${escapeHtml(avatarUrl)}">
+                <div class="chat-card">
+                    <div class="avatar">
+                        <img class="avatar-img"
+                             src="${escapeHtml(avatarUrl)}"
+                             alt="">
                     </div>
-                    <span class="user-message">Нажмите чтобы написать</span>
+                    <div class="card-content">
+                        <div class="name-time">
+                            <span class="user-name">${escapeHtml(username)}</span>
+                            <span class="user-status-badge ${user.status === 'online' ? 'online' : ''}">
+                                ${user.status === 'online' ? 'в сети' : ''}
+                            </span>
+                        </div>
+                        <span class="user-message">Нажмите чтобы написать</span>
+                    </div>
                 </div>
-            </div>
-        </li>
-    `).join('');
+            </li>
+        `;
+    }).join('');
 }
 
 export async function startChatWithUser(userId, username, avatarUrl) {
     try {
-        const data   = await fetchOrCreateChat(userId);
+        const data = await fetchOrCreateChat(userId);
         const chatId = data.chatId;
 
-        clearSearch();
+        clearSearch(false);
+
+        await loadChats();
+
+        const realCard = document.querySelector(`.card[data-chat-id="${chatId}"]`);
+        if (realCard) {
+            await openChat(realCard);
+            return;
+        }
 
         const tempCard = document.createElement('li');
-        tempCard.dataset.chatId     = chatId;
-        tempCard.dataset.userId     = userId;
-        tempCard.dataset.userName   = username;
-        tempCard.dataset.userAvatar = avatarUrl;
+        tempCard.className = 'card';
+        tempCard.dataset.chatId = chatId;
+        tempCard.dataset.userId = userId;
+        tempCard.dataset.userName = username ?? 'Чат';
+        tempCard.dataset.userAvatar = avatarUrl ?? DEFAULT_AVATAR;
+        tempCard.dataset.chatType =
+            Number(userId) === Number(state.currentUser?.id) ? 'notes' : 'private';
 
         await openChat(tempCard);
 
     } catch (error) {
-        console.error('Ошибка:', error);
+        console.error('Ошибка создания чата:', error);
     }
 }
 
-export function clearSearch() {
-    const searchInput    = document.getElementById('searchInput');
-    const searchResults  = document.getElementById('searchResults');
+export function clearSearch(reloadChats = true) {
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
     const chatsContainer = document.getElementById('chatsContainer');
 
-    if (searchInput)   searchInput.value         = '';
+    clearTimeout(searchTimeout);
+    searchRequestId++;
+
+    if (searchInput) searchInput.value = '';
+
     if (searchResults) {
         searchResults.style.display = 'none';
-        searchResults.innerHTML     = '';
+        searchResults.innerHTML = '';
     }
-    if (chatsContainer) chatsContainer.style.display = 'block';
 
-    loadChats();
+    if (chatsContainer) {
+        chatsContainer.style.display = 'block';
+    }
+
+    if (reloadChats) {
+        loadChats();
+    }
 }
 
 // ========================
@@ -217,9 +269,12 @@ export function clearSearch() {
 // ========================
 
 export function initResizer() {
-    const resizer   = document.querySelector('.resizer');
+    const resizer = document.querySelector('.resizer');
     const chatsList = document.querySelector('.chats-list');
-    let isResizing  = false;
+
+    if (!resizer || !chatsList) return;
+
+    let isResizing = false;
 
     resizer.addEventListener('mousedown', (e) => {
         isResizing = true;
@@ -229,17 +284,20 @@ export function initResizer() {
 
     document.addEventListener('mousemove', (e) => {
         if (!isResizing) return;
+
         const containerLeft = chatsList.getBoundingClientRect().left;
         let newWidth = e.clientX - containerLeft;
-        if (newWidth < 260)  newWidth = 260;
+
+        if (newWidth < 260) newWidth = 260;
         if (newWidth > 1160) newWidth = 1160;
-        chatsList.style.width = newWidth + 'px';
+
+        chatsList.style.width = `${newWidth}px`;
     });
 
     document.addEventListener('mouseup', () => {
-        if (isResizing) {
-            isResizing = false;
-            document.body.style.cursor = 'default';
-        }
+        if (!isResizing) return;
+
+        isResizing = false;
+        document.body.style.cursor = 'default';
     });
 }

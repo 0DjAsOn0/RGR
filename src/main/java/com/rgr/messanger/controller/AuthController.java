@@ -36,7 +36,7 @@ public class AuthController {
             @Validated(OnCreate.class) @RequestBody UserDto userDto
     ) {
         User user = userMapper.toEntity(userDto);
-        userService.create(user);
+        userService.create(user, userDto.getPasswordConfirmation());
         return ResponseEntity.ok(Map.of(
                 "message", "Проверьте почту и подтвердите email"
         ));
@@ -94,74 +94,38 @@ public class AuthController {
         return authService.refresh(refreshToken);
     }
 
-    // ========================
-    //  отправка кода
-    // ========================
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
-            @RequestBody ForgotPasswordRequest request
+            @Validated @RequestBody ForgotPasswordRequest request
     ) {
-        if (request.getEmail() == null || request.getEmail().isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Email обязателен"));
-        }
-
         passwordResetService.sendResetCode(request.getEmail());
-
         return ResponseEntity.ok(Map.of("message", "Код отправлен на почту"));
     }
 
-    // ========================
-    // проверка кода
-    // ========================
     @PostMapping("/verify-reset-code")
     public ResponseEntity<Map<String, String>> verifyResetCode(
-            @RequestBody VerifyResetCodeRequest request
+            @Validated @RequestBody VerifyResetCodeRequest request
     ) {
-        if (request.getEmail() == null || request.getCode() == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Email и код обязательны"));
-        }
-
         boolean valid = passwordResetService.verifyCode(
                 request.getEmail(), request.getCode()
         );
-
         if (!valid) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Неверный или истёкший код"));
         }
-
         return ResponseEntity.ok(Map.of("message", "Код подтверждён"));
     }
 
-    // ========================
-    //  смена пароля
-    // ========================
     @PostMapping("/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
-            @RequestBody ResetPasswordRequest request
+            @Validated @RequestBody ResetPasswordRequest request
     ) {
-        if (request.getNewPassword() == null
-                || request.getNewPassword().length() < 6) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Пароль не менее 6 символов"));
-        }
-
         if (!request.getNewPassword().equals(request.getNewPasswordConfirmation())) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Пароли не совпадают"));
         }
 
-        try {
-            passwordResetService.resetPassword(
-                    request.getEmail(), request.getNewPassword()
-            );
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
-        }
-
+        passwordResetService.resetPassword(request.getEmail(), request.getNewPassword());
         return ResponseEntity.ok(Map.of("message", "Пароль успешно изменён"));
     }
 }

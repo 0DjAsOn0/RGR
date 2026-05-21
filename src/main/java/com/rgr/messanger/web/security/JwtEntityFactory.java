@@ -5,23 +5,31 @@ import com.rgr.messanger.entity.user.User;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
-public class JwtEntityFactory {
-    public static JwtEntity create(User user){
+public final class JwtEntityFactory {
+
+    private JwtEntityFactory() {}
+
+    public static JwtEntity create(User user) {
         return new JwtEntity(
                 user.getId(),
                 user.getUsername(),
                 user.getPassword(),
-                mapToGrantedAuthorities(user.getRoles() == null
-                        ? Collections.emptyList()
-                        : user.getRoles().stream().toList())
+                mapToGrantedAuthorities(user.getRoles())
         );
     }
-    private static List<GrantedAuthority> mapToGrantedAuthorities(List<Role> roles){
-        return roles.stream().map(Enum::name).map(SimpleGrantedAuthority::new).collect(Collectors.toList());
+
+    private static List<GrantedAuthority> mapToGrantedAuthorities(Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return roles.stream()
+                .map(Enum::name)
+                .map(SimpleGrantedAuthority::new)
+                .map(authority -> (GrantedAuthority) authority)
+                .toList();
     }
 }

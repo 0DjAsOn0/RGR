@@ -1,53 +1,69 @@
-export async function fetchCurrentUser() {
-    const res = await fetch('/api/v1/users/me', {
-        credentials: 'include'
+async function request(url, options = {}) {
+    const res = await fetch(url, {
+        credentials: 'include',
+        ...options
     });
-    if (res.status === 401) throw new Error('401');
-    if (!res.ok) throw new Error('Ошибка: ' + res.status);
-    return res.json();
+
+    if (res.status === 401) {
+        throw new Error('401');
+    }
+
+    if (!res.ok) {
+        let message = `Ошибка: ${res.status}`;
+        try {
+            const data = await res.json();
+            message = data.error || data.message || message;
+        } catch (_) {}
+        throw new Error(message);
+    }
+
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+        return res.json();
+    }
+
+    return null;
+}
+
+export async function fetchCurrentUser() {
+    return request('/api/v1/users/me');
 }
 
 export async function fetchChats() {
-    const res = await fetch('/api/v1/chats', {
-        credentials: 'include'
-    });
-    if (!res.ok) throw new Error('Ошибка загрузки чатов');
-    return res.json();
+    return request('/api/v1/chats');
 }
 
 export async function fetchMessages(chatId) {
-    const res = await fetch(`/api/v1/messages/chat/${chatId}`, {
-        credentials: 'include'
-    });
-    if (!res.ok) throw new Error('Ошибка загрузки сообщений');
-    return res.json();
+    return request(`/api/v1/messages/chat/${chatId}`);
 }
 
 export async function fetchOrCreateChat(userId) {
-    const res = await fetch(`/api/v1/messages/private/${userId}`, {
-        method: 'POST',
-        credentials: 'include'
+    return request(`/api/v1/messages/private/${userId}`, {
+        method: 'POST'
     });
-    if (!res.ok) throw new Error('Ошибка создания чата');
-    return res.json();
 }
 
 export async function searchUsers(query) {
-    const res = await fetch(
-        `/api/v1/users/search?username=${encodeURIComponent(query)}`,
-        { credentials: 'include' }
-    );
-    if (!res.ok) throw new Error('Ошибка поиска');
-    return res.json();
+    return request(`/api/v1/users/search?username=${encodeURIComponent(query)}`);
 }
 
 export async function sendHeartbeat() {
-    await fetch('/api/v1/users/me/heartbeat', {
-        method: 'POST',
-        credentials: 'include'
+    return request('/api/v1/users/me/heartbeat', {
+        method: 'POST'
     });
 }
 
 export async function setOffline() {
-    navigator.sendBeacon('/api/v1/users/me/offline');
+    if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/v1/users/me/offline');
+        return;
+    }
+
+    try {
+        await fetch('/api/v1/users/me/offline', {
+            method: 'POST',
+            credentials: 'include',
+            keepalive: true
+        });
+    } catch (_) {}
 }

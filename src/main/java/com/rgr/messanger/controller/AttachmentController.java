@@ -3,20 +3,21 @@ package com.rgr.messanger.controller;
 import com.rgr.messanger.entity.attachment.Attachment;
 import com.rgr.messanger.entity.message.Message;
 import com.rgr.messanger.entity.message.Status;
-import com.rgr.messanger.entity.user.User;
+import com.rgr.messanger.exception.AccessDeniedException;
 import com.rgr.messanger.repository.AttachmentRepo;
+import com.rgr.messanger.service.ChatService;
 import com.rgr.messanger.service.FileStorageService;
 import com.rgr.messanger.service.MessageService;
-import com.rgr.messanger.service.UserService;
+import com.rgr.messanger.web.dto.message.MessageResponse;
+import com.rgr.messanger.web.security.JwtEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-import java.security.Principal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -26,10 +27,17 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AttachmentController {
 
+    private static final String TYPE_TEXT = "text";
+    private static final String TYPE_IMAGE = "image";
+    private static final String TYPE_IMAGES = "images";
+    private static final String TYPE_VIDEO = "video";
+    private static final String TYPE_AUDIO = "audio";
+    private static final String TYPE_FILE = "file";
+
     private final FileStorageService fileStorageService;
     private final AttachmentRepo attachmentRepo;
     private final MessageService messageService;
-    private final UserService userService;
+    private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @PostMapping("/upload/{chatId}")
@@ -38,31 +46,37 @@ public class AttachmentController {
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "text", required = false, defaultValue = "") String text,
             @RequestParam(value = "replyToId", required = false) Long replyToId,
-            Principal principal
+            @AuthenticationPrincipal JwtEntity user
     ) {
-        if (principal == null) return ResponseEntity.status(401).build();
+        if (!chatService.isMember(chatId, user.getId())) {
+            throw new AccessDeniedException("Вы не являетесь участником чата");
+        }
 
-        User sender = userService.getByUsername(principal.getName());
+        if (files == null || files.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Файлы не переданы"));
+        }
 
         String messageType = determineMessageType(files);
 
         Message message = new Message();
         message.setChatId(chatId);
-        message.setSenderId(sender.getId());
+        message.setSenderId(user.getId());
         message.setReplyToId(replyToId);
-        message.setText(text.isBlank() ? null : text);
+        message.setText(text != null && !text.isBlank() ? text.trim() : null);
         message.setType(messageType);
         message.setStatus(Status.SENT);
 
-        messageService.create(message, sender.getId());
+        messageService.create(message, user.getId());
 
-        log.info("Создано сообщение id={} chatId={} type={}", message.getId(), chatId, messageType);
+        log.info("Создано сообщение id={} chatId={} type={}",
+                message.getId(), chatId, messageType);
 
-        List<Map<String, Object>> savedAttachments = new ArrayList<>();
+        int savedCount = 0;
 
         for (MultipartFile file : files) {
             try {
-                String folder  = getFolderByMime(file.getContentType());
+                String folder = getFolderByMime(file.getContentType());
                 String fileUrl = fileStorageService.store(file, folder);
 
                 Attachment attachment = new Attachment();
@@ -73,64 +87,60 @@ public class AttachmentController {
                 attachment.setMimeType(file.getContentType());
 
                 attachmentRepo.save(attachment);
+                savedCount++;
 
-                log.info("Сохранён файл: {} -> {}", file.getOriginalFilename(), fileUrl);
-
-                savedAttachments.add(Map.of(
-                        "id",       attachment.getId(),
-                        "fileUrl",  fileUrl,
-                        "fileName", file.getOriginalFilename() != null
-                                ? file.getOriginalFilename() : "file",
-                        "fileSize", file.getSize(),
-                        "mimeType", file.getContentType() != null
-                                ? file.getContentType() : "application/octet-stream"
-                ));
+                log.info("Сохранён файл: {} -> {}",
+                        file.getOriginalFilename(), fileUrl);
 
             } catch (Exception e) {
-                log.error("Ошибка загрузки файла {}: {}", file.getOriginalFilename(), e.getMessage());
+                log.error("Ошибка загрузки файла {}",
+                        file != null ? file.getOriginalFilename() : "unknown", e);
             }
         }
 
-        //Отправляем WS уведомление всем участникам чата
-        Map<String, Object> wsMessage = new java.util.LinkedHashMap<>();
-        wsMessage.put("id",          message.getId());
-        wsMessage.put("chatId",      chatId);
-        wsMessage.put("senderId",    sender.getId());
-        wsMessage.put("senderName",  sender.getUsername());
-        wsMessage.put("type",        messageType);
-        wsMessage.put("text",        message.getText());
-        wsMessage.put("status",      "SENT");
-        wsMessage.put("sendDate",    message.getSendDate());
-        wsMessage.put("time",        message.getSendDate() != null
-                ? message.getSendDate().toLocalTime()
-                  .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                : "");
-        wsMessage.put("attachments", savedAttachments);
+        if (savedCount == 0) {
+            messageService.delete(message.getId());
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Не удалось загрузить ни один файл"));
+        }
 
-        messagingTemplate.convertAndSend("/topic/chat/" + chatId, (Object) wsMessage);
+        List<Attachment> savedAttachments = attachmentRepo.findByMessageId(message.getId());
 
-        return ResponseEntity.ok(Map.of(
-                "messageId",   message.getId(),
-                "status",      "SENT",
-                "attachments", savedAttachments
-        ));
+        message.setSenderName(user.getUsername());
+        MessageResponse response = MessageResponse.from(message, savedAttachments);
+
+        messagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/message/{messageId}")
     public ResponseEntity<List<Attachment>> getAttachments(
-            @PathVariable Long messageId
+            @PathVariable Long messageId,
+            @AuthenticationPrincipal JwtEntity user
     ) {
+        Message message = messageService.getById(messageId);
+
+        if (!chatService.isMember(message.getChatId(), user.getId())) {
+            throw new AccessDeniedException("Вы не являетесь участником чата");
+        }
+
         return ResponseEntity.ok(attachmentRepo.findByMessageId(messageId));
     }
 
     private String determineMessageType(List<MultipartFile> files) {
-        if (files == null || files.isEmpty()) return "text";
+        if (files == null || files.isEmpty()) return TYPE_TEXT;
+
         String mime = files.get(0).getContentType();
-        if (mime == null) return "file";
-        if (mime.startsWith("image/")) return files.size() > 1 ? "images" : "image";
-        if (mime.startsWith("video/")) return "video";
-        if (mime.startsWith("audio/")) return "audio";
-        return "file";
+        if (mime == null) return TYPE_FILE;
+
+        if (mime.startsWith("image/")) {
+            return files.size() > 1 ? TYPE_IMAGES : TYPE_IMAGE;
+        }
+        if (mime.startsWith("video/")) return TYPE_VIDEO;
+        if (mime.startsWith("audio/")) return TYPE_AUDIO;
+
+        return TYPE_FILE;
     }
 
     private String getFolderByMime(String mimeType) {

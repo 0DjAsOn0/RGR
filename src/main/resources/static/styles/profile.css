@@ -1,0 +1,348 @@
+.profilePage {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 40px;
+}
+
+.profilePage.show {
+    display: flex;
+}
+
+.profilePage-content {
+    background-color: var(--bg-panel);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-modal);
+    animation: modalAppear 0.3s ease;
+}
+
+@keyframes modalAppear {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.header-profile {
+    background-color: var(--bg-panel-3);
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 15px;
+    border-radius: 10px 10px 0 0;
+}
+
+.main-info-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    padding: 20px 0 10px;
+}
+
+.avatar-profile {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--border-color);
+}
+
+.nickname {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--text-main);
+}
+
+.time-activity {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.edit {
+    font-size: 13px;
+    color: var(--text-accent);
+    cursor: pointer;
+    white-space: nowrap;
+    padding-top: 4px;
+}
+
+.edit:hover {
+    text-decoration: underline;
+}
+
+.close {
+    font-size: 20px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding-top: 2px;
+}
+
+.close:hover {
+    color: var(--text-main);
+}
+
+.profile-contacts {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 2px;
+    border-bottom: 1px solid var(--bg-panel-3);
+}
+
+.contacts-link {
+    font-size: 15px;
+    color: var(--text-accent);
+}
+
+.contacts-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.email-refuse {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+}
+
+.refuse-agree {
+    font-size: 14px;
+    color: #e8f1f8;
+}
+
+.custom-checkbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+.custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+.checkmark {
+    width: 12px;
+    height: 12px;
+    background-color: var(--text-soft);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+}
+
+.custom-checkbox input:checked + .checkmark {
+    background-color: #3390ec;
+}
+
+.custom-checkbox input:checked + .checkmark::after {
+    content: "";
+    display: block;
+    width: 5px;
+    height: 9px;
+    border: solid var(--text-soft);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    margin-top: -2px;
+}
+
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 14px;
+}
+
+.avatar-upload {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    cursor: pointer;
+    overflow: hidden;
+    margin: 0 auto;
+    border: 3px solid var(--border-color);
+}
+
+.avatar-edit-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+}
+
+.avatar-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 10px;
+    text-align: center;
+    padding: 6px 0;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.avatar-upload:hover .avatar-overlay {
+    opacity: 1;
+}
+
+.edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.edit-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.edit-input {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: #e8f1f8;
+    padding: 10px 12px;
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.2s;
+}
+
+.edit-input:focus {
+    border-color: var(--text-accent);
+}
+
+.edit-divider {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    position: relative;
+    margin: 4px 0;
+}
+
+.edit-divider::before,
+.edit-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 35%;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.edit-divider::before { left: 0; }
+.edit-divider::after  { right: 0; }
+
+.password-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-input-wrap .edit-input {
+    padding-right: 40px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--text-muted);
+    padding: 0;
+}
+
+.toggle-password:hover {
+    color: var(--text-main);
+}
+
+.password-strength {
+    margin-top: 4px;
+}
+
+.strength-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.strength-segment {
+    height: 4px;
+    flex: 1;
+    border-radius: 2px;
+    background: var(--border-color);
+}
+
+.strength-label {
+    font-size: 12px;
+}
+
+.edit-error {
+    background: rgba(229, 57, 53, 0.15);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    color: #e57373;
+    font-size: 13px;
+    padding: 10px 12px;
+}
+
+.edit-success {
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid var(--success);
+    border-radius: var(--radius-sm);
+    color: #81c784;
+    font-size: 13px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.edit-save-btn {
+    background: var(--bg-message-out);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: 15px;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s;
+    margin-top: 4px;
+}
+
+.edit-save-btn:hover {
+    background: #3a6a9a;
+}
+
+.edit-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

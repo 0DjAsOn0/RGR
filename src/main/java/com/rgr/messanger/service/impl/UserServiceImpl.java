@@ -24,6 +24,10 @@ public class UserServiceImpl implements UserService {
     private final EmailVerificationService emailVerificationService;
     private final ChatService              chatService;
 
+    // ========================
+    // ЧТЕНИЕ
+    // ========================
+
     @Override
     @Transactional(readOnly = true)
     public User getById(Long id) {
@@ -40,56 +44,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<User> searchByUsername(String username) {
-        return userRepo.searchByUsername(username);
-    }
-
-    @Override
-    @Transactional
-    public void updateEmailNotifications(Long userId, boolean emailNotifications) {
-        userRepo.updateEmailNotifications(userId, emailNotifications);
-    }
-
-    @Override
-    @Transactional
-    public void updateOnlineStatus(Long userId, boolean online) {
-        userRepo.updateOnlineStatus(userId, online);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public User getByEmail(String email) {
         return userRepo.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
     }
 
     @Override
-    @Transactional
-    public User update(User user) {
-        if (user.getPassword() != null
-                && !user.getPassword().startsWith("$2a$")) {
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-        }
-        userRepo.update(user);
-        return user;
+    @Transactional(readOnly = true)
+    public List<User> searchByUsername(String username) {
+        return userRepo.searchByUsername(username);
     }
+
+    // ========================
+    // СОЗДАНИЕ
+    // ========================
 
     @Override
     @Transactional
-    public void updateAvatar(Long id, String avatarUrl) {
-        userRepo.updateAvatar(id, avatarUrl);
-    }
-
-    @Override
-    @Transactional
-    public User create(User user) {
+    public User create(User user, String passwordConfirmation) {
         if (userRepo.findByUsername(user.getUsername()).isPresent()) {
             throw new IllegalStateException("Такой пользователь уже существует");
         }
         if (userRepo.findByEmail(user.getEmail()).isPresent()) {
             throw new IllegalStateException("Адрес электронной почты уже существует");
         }
-        if (!user.getPassword().equals(user.getPasswordConfirmation())) {
+        if (!user.getPassword().equals(passwordConfirmation)) {
             throw new IllegalStateException("Пароль и подтверждение пароля не совпадают");
         }
 
@@ -108,8 +87,58 @@ public class UserServiceImpl implements UserService {
         return user;
     }
 
+    // ========================
+    // ОБНОВЛЕНИЕ
+    // ========================
+
     @Override
     @Transactional
+    public User update(User user) {
+        // НЕ перешифровывает пароль — для этого есть updatePassword.
+        // update() обновляет только поля username/email/avatar/status и т.д.
+        userRepo.update(user);
+        return user;
+    }
+
+    @Override
+    @Transactional
+    public void updateAvatar(Long id, String avatarUrl) {
+        userRepo.updateAvatar(id, avatarUrl);
+    }
+
+    @Override
+    @Transactional
+    public void updatePassword(Long userId, String oldPassword, String newPassword) {
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new IllegalArgumentException("Пароль должен быть не менее 6 символов");
+        }
+
+        User user = getById(userId);
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new IllegalStateException("Неверный текущий пароль");
+        }
+
+        userRepo.updatePassword(userId, passwordEncoder.encode(newPassword));
+    }
+
+    @Override
+    @Transactional
+    public void updateOnlineStatus(Long userId, boolean online) {
+        userRepo.updateOnlineStatus(userId, online);
+    }
+
+    @Override
+    @Transactional
+    public void updateEmailNotifications(Long userId, boolean emailNotifications) {
+        userRepo.updateEmailNotifications(userId, emailNotifications);
+    }
+
+    // ========================
+    // ПРОЧЕЕ
+    // ========================
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean isMessageOwner(Long userId, Long messageId) {
         return userRepo.isMessageOwner(userId, messageId);
     }
