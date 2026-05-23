@@ -4,6 +4,7 @@ import com.rgr.messanger.entity.user.User;
 import com.rgr.messanger.exception.ResourceNotFoundException;
 import com.rgr.messanger.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -19,6 +20,11 @@ public class JwtUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         try {
             User user = userService.getByUsername(username);
+
+            if (user.isBlocked()) {
+                throw new LockedException("Пользователь заблокирован");
+            }
+
             return JwtEntityFactory.create(user);
         } catch (ResourceNotFoundException e) {
             throw new UsernameNotFoundException(

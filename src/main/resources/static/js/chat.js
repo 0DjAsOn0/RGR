@@ -64,13 +64,13 @@ function buildMessage(msg) {
         : '';
 
     const textHtml = text
-        ? `<span class="message-text">${escapeHtml(text)}</span>`
+        ? `<div class="msg-text">${escapeHtml(text)}</div>`
         : '';
 
     const needsAttachmentFallback = !text && attachments.length === 0 && msg.type && msg.type !== 'text';
 
     const attachmentFallbackHtml = needsAttachmentFallback
-        ? `<span class="message-text">${escapeHtml(getAttachmentFallback(msg.type))}</span>`
+        ? `<div class="msg-text">${escapeHtml(getAttachmentFallback(msg.type))}</div>`
         : '';
 
     const replyHtml = msg.replyToId
@@ -82,7 +82,7 @@ function buildMessage(msg) {
         : '';
 
     const editedHtml = msg.isEdited
-        ? `<span class="message-edited">(изменено)</span>`
+        ? `<span class="msg-edited-mark">(изм.)</span>`
         : '';
 
     const hasVisibleContent = Boolean(
@@ -96,27 +96,44 @@ function buildMessage(msg) {
         return '';
     }
 
+    // Кнопки действий (редактировать, удалить)
+    const actionsHtml = text ? `
+        <div class="msg-actions">
+            <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="Редактировать">
+                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </button>
+            <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
+                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+        </div>
+    ` : `
+        <div class="msg-actions">
+            <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
+                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+        </div>
+    `;
+
     return `
         <div class="message ${isOwn ? 'message-out' : 'message-in'}"
              data-id="${msg.id}">
             <div class="message-bubble">
+                ${actionsHtml}
+                
                 ${!isOwn && msg.senderName
         ? `<span class="message-sender">${escapeHtml(msg.senderName)}</span>`
         : ''
     }
 
                 ${replyHtml}
+                ${attachmentsHtml}
                 ${textHtml}
                 ${attachmentFallbackHtml}
-                ${attachmentsHtml}
 
                 <span class="message-meta">
                     ${editedHtml}
                     <span class="message-time-small">${msg.time ?? ''}</span>
-                    ${isOwn
-        ? `<span class="message-status">${formatStatus(msg.status)}</span>`
-        : ''
-    }
+                    ${isOwn ? `<span class="message-status status-icon ${msg.status === 'READ' ? 'read' : ''}">${formatStatus(msg.status)}</span>` : ''}
                 </span>
             </div>
         </div>
@@ -181,6 +198,9 @@ export function updateMessageStatus(messageId, status) {
     const statusEl = msgEl.querySelector('.message-status');
     if (statusEl) {
         statusEl.innerHTML = formatStatus(status);
+        if (status === 'READ') {
+            statusEl.classList.add('read');
+        }
     }
 }
 

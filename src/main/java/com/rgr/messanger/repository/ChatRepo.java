@@ -35,4 +35,6 @@ public interface ChatRepo {
     void removeMember(Long chatId, Long userId);
 
     Optional<String> getMemberRole(Long chatId, Long userId);
+
+    List<com.rgr.messanger.web.dto.chat.ChatMemberResponse> getMembersDetailed(Long chatId);
 }

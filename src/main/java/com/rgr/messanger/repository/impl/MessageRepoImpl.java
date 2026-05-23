@@ -261,4 +261,41 @@ public class MessageRepoImpl implements MessageRepo {
                 COUNT_UNREAD_PER_CHAT, UNREAD_NOTIFICATION_THRESHOLD
         );
     }
+
+    private static final String UPDATE_TEXT = """
+        UPDATE messages
+        SET text = ?, is_edited = TRUE, edited_at = NOW()
+        WHERE id = ?
+        """;
+
+    @Override
+    public void updateText(Long messageId, String text) {
+        jdbcTemplate.update(UPDATE_TEXT, text, messageId);
+    }
+
+    private static final String MARK_DELETED = """
+        UPDATE messages
+        SET is_deleted = TRUE
+        WHERE id = ?
+        """;
+
+    @Override
+    public void markDeleted(Long messageId) {
+        jdbcTemplate.update(MARK_DELETED, messageId);
+    }
+
+    // ========================
+    // ОЧИСТИТЬ ВСЕ СООБЩЕНИЯ В ЧАТЕ (для заметок)
+    // ========================
+    private static final String MARK_DELETED_BY_CHAT_ID = """
+        UPDATE messages
+        SET is_deleted = TRUE
+        WHERE chat_id = ?
+          AND is_deleted = FALSE
+        """;
+
+    @Override
+    public void markDeletedByChatId(Long chatId) {
+        jdbcTemplate.update(MARK_DELETED_BY_CHAT_ID, chatId);
+    }
 }

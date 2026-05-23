@@ -1,22 +1,17 @@
-package com.rgr.messanger.entity.user;
+package com.rgr.messanger.web.dto.admin;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import com.rgr.messanger.entity.user.Role;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 
-@Getter
-@Setter
-@ToString(exclude = "password")
-@EqualsAndHashCode(of = "id")
-public class User {
+@Data
+public class AdminUserResponse {
+
     private Long id;
     private String username;
     private String email;
-    private String password;
     private String avatarUrl;
     private String status;
     private LocalDateTime lastSeen;
@@ -25,5 +20,4 @@ public class User {
     private boolean blocked;
     private Set<Role> roles;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }

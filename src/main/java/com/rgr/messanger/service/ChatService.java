@@ -2,11 +2,18 @@ package com.rgr.messanger.service;
 
 import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.web.dto.chat.ChatDto;
+import com.rgr.messanger.web.dto.chat.ChatInfoResponse;
+import com.rgr.messanger.web.dto.chat.ChatMemberResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface ChatService {
+
+    // ========================
+    // ПОИСК / ЧТЕНИЕ
+    // ========================
 
     List<ChatDto> findByUserId(Long userId);
 
@@ -14,25 +21,45 @@ public interface ChatService {
 
     Optional<Chat> findPrivateChat(Long userId1, Long userId2);
 
+    List<Long> getChatMemberIds(Long chatId);
+
+    boolean isMember(Long chatId, Long userId);
+
+    Optional<String> getMemberRole(Long chatId, Long userId);
+
+    ChatInfoResponse getChatInfo(Long chatId, Long userId);
+
+    List<ChatMemberResponse> getChatMembers(Long chatId, Long userId);
+
+    // ========================
+    // СОЗДАНИЕ
+    // ========================
+
     Long createPrivateChat(Long creatorId);
 
     Long createNotesChat(Long userId);
 
     Long createGroupChat(String name, Long creatorId, List<Long> memberIds);
 
+    // ========================
+    // РЕДАКТИРОВАНИЕ
+    // ========================
+
     void updateChat(Long chatId, String name, String avatarUrl, Long requesterId);
+
+    void updateChatName(Long chatId, String name, Long currentUserId);
+
+    String updateChatAvatar(Long chatId, MultipartFile file, Long currentUserId);
 
     void deleteChat(Long chatId, Long requesterId);
 
-    List<Long> getChatMemberIds(Long chatId);
-
-    boolean isMember(Long chatId, Long userId);
+    // ========================
+    // УЧАСТНИКИ
+    // ========================
 
     void addMember(Long chatId, Long userId);
 
-    void addMember(Long chatId, Long userId, Long requesterId);
+    void addMember(Long chatId, Long userId, Long currentUserId);
 
-    void removeMember(Long chatId, Long userId, Long requesterId);
-
-    Optional<String> getMemberRole(Long chatId, Long userId);
+    void removeMember(Long chatId, Long userId, Long currentUserId);
 }

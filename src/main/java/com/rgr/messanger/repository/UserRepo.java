@@ -24,17 +24,25 @@ public interface UserRepo {
 
     void updateAvatar(Long id, String avatarUrl);
 
+    void replaceUserRoles(Long userId, List<Role> roles);
+
     void updateUsername(Long id, String username);
 
     void updateEmailNotifications(Long userId, boolean emailNotifications);
 
+    void updateBlocked(Long userId, boolean blocked);
+
     void update(User user);
+
+    List<User> findAll();
 
     void create(User user);
 
     void insertUserRole(Long userId, Role role);
 
     boolean isMessageOwner(Long userId, Long messageId);
+
+    long countUsers();
 
     void delete(Long id);
 

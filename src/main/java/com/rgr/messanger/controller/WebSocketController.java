@@ -115,25 +115,24 @@ public class WebSocketController {
             message = new Message();
             message.setChatId(chatId);
             message.setSenderId(sender.getId());
+            message.setSenderName(sender.getUsername());
             message.setText(content);
             message.setType("text");
             message.setReplyToId(replyToId);
             message.setStatus(Status.SENT);
+            message.setSendDate(java.time.LocalDateTime.now());
+
             messageRepo.create(message);
 
             MessageResponse response = MessageResponse.from(message);
 
-            // Рассылаем всем участникам чата
+            // Рассылаем в открытый чат
             messagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
 
-            // Уведомляем остальных участников (для обновления списка чатов)
+            // Рассылаем всем участникам в их личные топики (для обновления списка чатов)
             List<Long> memberIds = chatService.getChatMemberIds(chatId);
             for (Long memberId : memberIds) {
-                if (!memberId.equals(sender.getId())) {
-                    messagingTemplate.convertAndSend(
-                            "/topic/user/" + memberId, response
-                    );
-                }
+                messagingTemplate.convertAndSend("/topic/user/" + memberId, response);
             }
 
             log.info("WS message sent, id: {}", message.getId());

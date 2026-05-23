@@ -21,7 +21,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserRepoImpl implements UserRepo {
 
-    private static final String STATUS_ONLINE  = "online";
+    private static final String STATUS_ONLINE = "online";
     private static final String STATUS_OFFLINE = "offline";
 
     private static final ResultSetExtractor<User> USER_EXTRACTOR =
@@ -33,26 +33,28 @@ public class UserRepoImpl implements UserRepo {
     // SELECT-БАЗА
     // ========================
     private static final String SELECT_USER_BASE = """
-        SELECT u.id                  as user_id,
-               u.username            as user_username,
-               u.email               as user_email,
-               u.password            as user_password,
-               u.avatar_url          as user_avatar_url,
-               u.status              as user_status,
-               u.last_seen           as user_last_seen,
-               u.created_at          as user_created_at,
-               u.updated_at          as user_updated_at,
-               u.email_verified      as user_email_verified,
-               u.email_notifications as user_email_notifications,
-               ur.role               as user_role
+        SELECT u.id                  AS user_id,
+               u.username            AS user_username,
+               u.email               AS user_email,
+               u.password            AS user_password,
+               u.avatar_url          AS user_avatar_url,
+               u.status              AS user_status,
+               u.last_seen           AS user_last_seen,
+               u.created_at          AS user_created_at,
+               u.updated_at          AS user_updated_at,
+               u.email_verified      AS user_email_verified,
+               u.email_notifications AS user_email_notifications,
+               u.blocked             AS user_blocked,
+               ur.role               AS user_role
         FROM users u
         LEFT JOIN user_roles ur ON ur.user_id = u.id
         """;
 
-    private static final String FIND_BY_ID         = SELECT_USER_BASE + " WHERE u.id = ?";
-    private static final String FIND_BY_USERNAME   = SELECT_USER_BASE + " WHERE u.username = ?";
-    private static final String FIND_BY_EMAIL     = SELECT_USER_BASE + " WHERE LOWER(u.email) = LOWER(?)";
-    private static final String SEARCH_BY_USERNAME = SELECT_USER_BASE + " WHERE u.username ILIKE ? LIMIT 20";
+    private static final String FIND_BY_ID = SELECT_USER_BASE + " WHERE u.id = ?";
+    private static final String FIND_BY_USERNAME = SELECT_USER_BASE + " WHERE u.username = ?";
+    private static final String FIND_BY_EMAIL = SELECT_USER_BASE + " WHERE LOWER(u.email) = LOWER(?)";
+    private static final String SEARCH_BY_USERNAME = SELECT_USER_BASE + " WHERE u.username ILIKE ? ORDER BY u.username LIMIT 20";
+    private static final String FIND_ALL = SELECT_USER_BASE + " ORDER BY u.id DESC";
 
     @Override
     public Optional<User> findById(Long id) {
@@ -84,12 +86,66 @@ public class UserRepoImpl implements UserRepo {
         );
     }
 
+    @Override
+    public List<User> findAll() {
+        return jdbcTemplate.query(
+                FIND_ALL,
+                rs -> {
+                    List<User> users = new java.util.ArrayList<>();
+                    User currentUser = null;
+                    java.util.Set<Role> currentRoles = new java.util.HashSet<>();
+                    Long currentId = null;
+
+                    while (rs.next()) {
+                        Long rowUserId = rs.getLong("user_id");
+
+                        if (currentId == null || !currentId.equals(rowUserId)) {
+                            if (currentUser != null) {
+                                currentUser.setRoles(new java.util.HashSet<>(currentRoles));
+                                users.add(currentUser);
+                            }
+
+                            currentUser = UserRowMapper.mapBasicRow(rs);
+                            currentRoles = new java.util.HashSet<>();
+                            currentId = rowUserId;
+                        }
+
+                        String role = rs.getString("user_role");
+                        if (role != null && !role.isBlank()) {
+                            try {
+                                currentRoles.add(Role.valueOf(role));
+                            } catch (IllegalArgumentException ignored) {
+                                // ignore invalid role
+                            }
+                        }
+                    }
+
+                    if (currentUser != null) {
+                        currentUser.setRoles(new java.util.HashSet<>(currentRoles));
+                        users.add(currentUser);
+                    }
+
+                    return users;
+                }
+        );
+    }
+
     // ========================
     // СОЗДАНИЕ
     // ========================
     private static final String CREATE = """
-        INSERT INTO users (username, email, password, avatar_url, status, last_seen)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO users (
+            username,
+            email,
+            password,
+            avatar_url,
+            status,
+            last_seen,
+            email_verified,
+            email_notifications,
+            blocked
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     @Override
@@ -104,11 +160,13 @@ public class UserRepoImpl implements UserRepo {
             stmt.setString(2, user.getEmail());
             stmt.setString(3, user.getPassword());
             stmt.setString(4, user.getAvatarUrl());
-            stmt.setString(5, user.getStatus() != null
-                    ? user.getStatus() : STATUS_OFFLINE);
+            stmt.setString(5, user.getStatus() != null ? user.getStatus() : STATUS_OFFLINE);
             stmt.setTimestamp(6, user.getLastSeen() != null
                     ? Timestamp.valueOf(user.getLastSeen())
                     : Timestamp.valueOf(LocalDateTime.now()));
+            stmt.setBoolean(7, user.isEmailVerified());
+            stmt.setBoolean(8, user.isEmailNotifications());
+            stmt.setBoolean(9, user.isBlocked());
             return stmt;
         }, keyHolder);
 
@@ -120,7 +178,7 @@ public class UserRepoImpl implements UserRepo {
     }
 
     // ========================
-    // НАЗНАЧИТЬ РОЛЬ
+    // РОЛИ
     // ========================
     private static final String INSERT_USER_ROLE = """
         INSERT INTO user_roles (user_id, role)
@@ -128,9 +186,25 @@ public class UserRepoImpl implements UserRepo {
         ON CONFLICT DO NOTHING
         """;
 
+    private static final String DELETE_USER_ROLES = """
+        DELETE FROM user_roles
+        WHERE user_id = ?
+        """;
+
     @Override
     public void insertUserRole(Long userId, Role role) {
         jdbcTemplate.update(INSERT_USER_ROLE, userId, role.name());
+    }
+
+    @Override
+    public void replaceUserRoles(Long userId, List<Role> roles) {
+        jdbcTemplate.update(DELETE_USER_ROLES, userId);
+        if (roles == null || roles.isEmpty()) {
+            return;
+        }
+        for (Role role : roles) {
+            jdbcTemplate.update(INSERT_USER_ROLE, userId, role.name());
+        }
     }
 
     // ========================
@@ -138,7 +212,8 @@ public class UserRepoImpl implements UserRepo {
     // ========================
 
     private static final String UPDATE_USERNAME = """
-        UPDATE users SET username = ?, updated_at = NOW()
+        UPDATE users
+        SET username = ?, updated_at = NOW()
         WHERE id = ?
         """;
 
@@ -148,7 +223,8 @@ public class UserRepoImpl implements UserRepo {
     }
 
     private static final String UPDATE_AVATAR = """
-        UPDATE users SET avatar_url = ?, updated_at = NOW()
+        UPDATE users
+        SET avatar_url = ?, updated_at = NOW()
         WHERE id = ?
         """;
 
@@ -158,7 +234,8 @@ public class UserRepoImpl implements UserRepo {
     }
 
     private static final String UPDATE_PASSWORD = """
-        UPDATE users SET password = ?, updated_at = NOW()
+        UPDATE users
+        SET password = ?, updated_at = NOW()
         WHERE id = ?
         """;
 
@@ -177,9 +254,11 @@ public class UserRepoImpl implements UserRepo {
 
     @Override
     public void updateOnlineStatus(Long userId, boolean online) {
-        jdbcTemplate.update(UPDATE_STATUS,
+        jdbcTemplate.update(
+                UPDATE_STATUS,
                 online ? STATUS_ONLINE : STATUS_OFFLINE,
-                userId);
+                userId
+        );
     }
 
     private static final String VERIFY_EMAIL = """
@@ -206,24 +285,40 @@ public class UserRepoImpl implements UserRepo {
         jdbcTemplate.update(UPDATE_EMAIL_NOTIFICATIONS, emailNotifications, userId);
     }
 
-    // ========================
-    // ПОЛНОЕ ОБНОВЛЕНИЕ
-    // ========================
-    private static final String UPDATE = """
+    private static final String UPDATE_BLOCKED = """
         UPDATE users
-        SET username   = ?,
-            email      = ?,
-            password   = ?,
-            avatar_url = COALESCE(?, avatar_url),
-            status     = COALESCE(?, status),
-            last_seen  = COALESCE(?, last_seen),
+        SET blocked    = ?,
             updated_at = NOW()
         WHERE id = ?
         """;
 
     @Override
+    public void updateBlocked(Long userId, boolean blocked) {
+        jdbcTemplate.update(UPDATE_BLOCKED, blocked, userId);
+    }
+
+    // ========================
+    // ПОЛНОЕ ОБНОВЛЕНИЕ
+    // ========================
+    private static final String UPDATE = """
+        UPDATE users
+        SET username            = ?,
+            email               = ?,
+            password            = ?,
+            avatar_url          = COALESCE(?, avatar_url),
+            status              = COALESCE(?, status),
+            last_seen           = COALESCE(?, last_seen),
+            email_verified      = ?,
+            email_notifications = ?,
+            blocked             = ?,
+            updated_at          = NOW()
+        WHERE id = ?
+        """;
+
+    @Override
     public void update(User user) {
-        jdbcTemplate.update(UPDATE,
+        jdbcTemplate.update(
+                UPDATE,
                 user.getUsername(),
                 user.getEmail(),
                 user.getPassword(),
@@ -232,6 +327,9 @@ public class UserRepoImpl implements UserRepo {
                 user.getLastSeen() != null
                         ? Timestamp.valueOf(user.getLastSeen())
                         : null,
+                user.isEmailVerified(),
+                user.isEmailNotifications(),
+                user.isBlocked(),
                 user.getId()
         );
     }
@@ -250,16 +348,31 @@ public class UserRepoImpl implements UserRepo {
         Integer count = jdbcTemplate.queryForObject(
                 IS_MESSAGE_OWNER,
                 Integer.class,
-                messageId, userId   // ✅ исправлено: messageId → id, userId → sender_id
+                messageId,
+                userId
         );
         return count != null && count > 0;
+    }
+
+    // ========================
+    // СТАТИСТИКА
+    // ========================
+    private static final String COUNT_USERS = """
+        SELECT COUNT(*) FROM users
+        """;
+
+    @Override
+    public long countUsers() {
+        Long count = jdbcTemplate.queryForObject(COUNT_USERS, Long.class);
+        return count != null ? count : 0L;
     }
 
     // ========================
     // УДАЛИТЬ
     // ========================
     private static final String DELETE = """
-        DELETE FROM users WHERE id = ?
+        DELETE FROM users
+        WHERE id = ?
         """;
 
     @Override

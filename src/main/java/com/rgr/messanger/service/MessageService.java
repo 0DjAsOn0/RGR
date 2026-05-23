@@ -25,4 +25,8 @@ public interface MessageService {
     void markChatAsRead(Long chatId, Long userId);
 
     void delete(Long id);
+
+    void editMessage(Long messageId, String newText, Long requesterId);
+
+    void deleteMessage(Long messageId, Long requesterId);
 }

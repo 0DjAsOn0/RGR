@@ -11,6 +11,10 @@ import com.rgr.messanger.web.security.JwtEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -25,8 +29,8 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class MessageController {
 
-    private final MessageService       messageService;
-    private final ChatService          chatService;
+    private final MessageService        messageService;
+    private final ChatService           chatService;
     private final SimpMessagingTemplate messagingTemplate;
 
     // ========================
@@ -65,6 +69,7 @@ public class MessageController {
         Message message = new Message();
         message.setChatId(chatId);
         message.setSenderId(user.getId());
+        message.setSenderName(user.getUsername()); // <-- Имя отправителя
         message.setText(content);
         message.setType("text");
         message.setReplyToId(replyToId);
@@ -73,10 +78,16 @@ public class MessageController {
         messageService.create(message, user.getId());
 
         MessageResponse response = MessageResponse.from(message);
+
+        // Отправка в открытый чат
         messagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
+
+        // Отправка уведомлений всем участникам (чтобы обновился список чатов)
+        notifyMembers(chatId, response);
 
         return ResponseEntity.ok(response);
     }
+
 
     // ========================
     // ОТМЕТИТЬ ОДНО СООБЩЕНИЕ КАК ПРОЧИТАННОЕ
@@ -144,5 +155,53 @@ public class MessageController {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private void notifyMembers(Long chatId, MessageResponse response) {
+        List<Long> memberIds = chatService.getChatMemberIds(chatId);
+        for (Long memberId : memberIds) {
+            messagingTemplate.convertAndSend("/topic/user/" + memberId, response);
+        }
+    }
+
+    @PatchMapping("/{messageId}")
+    public ResponseEntity<Void> editMessage(
+            @PathVariable Long messageId,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal JwtEntity user
+    ) {
+        String newText = body.get("text");
+        if (newText == null || newText.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        messageService.editMessage(messageId, newText, user.getId());
+        Message message = messageService.getById(messageId);
+
+        Object payload = Map.of(
+                "type", "MESSAGE_EDITED",
+                "messageId", messageId,
+                "text", newText
+        );
+        messagingTemplate.convertAndSend("/topic/chat/" + message.getChatId(), payload);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{messageId}")
+    public ResponseEntity<Void> deleteMessage(
+            @PathVariable Long messageId,
+            @AuthenticationPrincipal JwtEntity user
+    ) {
+        Message message = messageService.getById(messageId);
+        messageService.deleteMessage(messageId, user.getId());
+
+        Object payload = Map.of(
+                "type", "MESSAGE_DELETED",
+                "messageId", messageId
+        );
+        messagingTemplate.convertAndSend("/topic/chat/" + message.getChatId(), payload);
+
+        return ResponseEntity.ok().build();
     }
 }

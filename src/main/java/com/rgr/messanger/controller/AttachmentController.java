@@ -66,6 +66,7 @@ public class AttachmentController {
         message.setText(text != null && !text.isBlank() ? text.trim() : null);
         message.setType(messageType);
         message.setStatus(Status.SENT);
+        message.setSendDate(java.time.LocalDateTime.now());
 
         messageService.create(message, user.getId());
 
@@ -109,7 +110,14 @@ public class AttachmentController {
         message.setSenderName(user.getUsername());
         MessageResponse response = MessageResponse.from(message, savedAttachments);
 
+        // 1. Сообщение для открытого чата
         messagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
+
+        // 2. Уведомление всем участникам для левого списка чатов / неоткрытых диалогов
+        List<Long> memberIds = chatService.getChatMemberIds(chatId);
+        for (Long memberId : memberIds) {
+            messagingTemplate.convertAndSend("/topic/user/" + memberId, response);
+        }
 
         return ResponseEntity.ok(response);
     }

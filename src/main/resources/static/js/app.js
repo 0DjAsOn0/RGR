@@ -7,6 +7,7 @@ import { initGroupModal } from './group.js';
 import { viewMyProfile, closeCreateWindow, toggleEmailNotifications } from './profile.js';
 import { loadCurrentUser, stopHeartbeat, logout } from './user.js';
 import { initAttachments, uploadFiles, initLightbox } from './attachments.js';
+import { initChatInfo, openUserProfile, openGroupInfo } from './chat-info.js';
 
 const DEFAULT_AVATAR = '/avatars/default.png';
 
@@ -15,9 +16,15 @@ export const state = {
     currentChatId: null,
     currentChatUserId: null,
     replyToId: null,
+    editMessageId: null,
 };
 
 let attachmentManager = null;
+let chatsRefreshTimer = null;
+let chatsRefreshInFlight = false;
+
+const processedMessageIds = new Set();
+const PROCESSED_LIMIT = 500;
 
 // ========================
 // СТАРТ
@@ -30,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    await loadChats();
+    await refreshChatsNow();
 
     connectWebSocket(onMessageReceived);
 
@@ -38,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initEventListeners();
     initGroupModal();
     initLightbox();
+    initChatInfo();
 });
 
 function initEventListeners() {
@@ -61,12 +69,93 @@ function initEventListeners() {
             }
 
             if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
                 clearSearch();
             }
         });
     }
 
     document.addEventListener('click', (e) => {
+
+        // 1. Открытие/закрытие меню опций чата (кнопка ⋮)
+        const chatOptionsBtn = e.target.closest('#chatOptionsBtn');
+        const chatOptionsMenu = document.getElementById('chatOptionsMenu');
+
+        if (chatOptionsBtn) {
+            e.stopPropagation(); // Чтобы клик не закрыл меню сразу же
+            if (chatOptionsMenu) {
+                const isHidden = chatOptionsMenu.style.display === 'none';
+                chatOptionsMenu.style.display = isHidden ? 'flex' : 'none';
+            }
+            return;
+        }
+
+        // Если кликнули мимо меню — закрываем его
+        if (chatOptionsMenu && chatOptionsMenu.style.display !== 'none') {
+            const isClickInside = e.target.closest('#chatOptionsMenu');
+            if (!isClickInside) {
+                chatOptionsMenu.style.display = 'none';
+            }
+        }
+
+        // 2. Нажатие на "Удалить чат"
+        const deleteChatBtn = e.target.closest('#deleteChatBtn');
+        if (deleteChatBtn) {
+            e.stopPropagation();
+            if (chatOptionsMenu) chatOptionsMenu.style.display = 'none';
+            deleteCurrentChat(); // Вызываем функцию удаления
+            return;
+        }
+
+
+        // Обработка кнопки УДАЛИТЬ сообщение
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn && !e.target.closest('.chat-info-remove-btn')) { // Отличаем от кнопки удаления юзера из чата
+            const msgId = deleteBtn.dataset.id;
+            if (confirm("Точно удалить сообщение?")) {
+                fetch(`/api/v1/messages/${msgId}`, { method: 'DELETE', credentials: 'include' })
+                    .catch(err => alert("Нет прав для удаления"));
+            }
+            return;
+        }
+
+        // Обработка кнопки РЕДАКТИРОВАТЬ сообщение
+        const editBtn = e.target.closest('.edit-btn');
+        if (editBtn) {
+            state.editMessageId = editBtn.dataset.id;
+            const text = editBtn.dataset.text;
+
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.value = text;
+                messageInput.focus();
+            }
+
+            // Используем панель Reply для отображения статуса "Редактирование"
+            const replyPreview = document.getElementById('replyPreview');
+            const replyText = document.getElementById('replyPreviewText');
+            if (replyPreview && replyText) {
+                const label = document.querySelector('.reply-preview-label');
+                if (label) label.textContent = 'Редактирование:';
+                replyText.textContent = text.length > 50 ? text.slice(0, 50) + '...' : text;
+                replyPreview.style.display = 'flex';
+            }
+            return;
+        }
+
+        // Кнопка закрытия панели Reply / Edit
+        const cancelReply = e.target.closest('.cancel-reply-btn');
+        if (cancelReply) {
+            clearReply();
+            state.editMessageId = null;
+            const label = document.querySelector('.reply-preview-label');
+            if (label) label.textContent = 'Ответ на:';
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) messageInput.value = '';
+            return;
+        }
+
         const searchCard = e.target.closest('.search-card');
         if (searchCard) {
             const userId = searchCard.dataset.userId;
@@ -74,6 +163,15 @@ function initEventListeners() {
             const avatar = searchCard.dataset.userAvatar;
             startChatWithUser(userId, username, avatar);
             return;
+        }
+
+        const dialogHeader = e.target.closest('.dialog-header');
+        if (dialogHeader && state.currentChatId) {
+            // Игнорируем клик, если он был по кнопкам действий (⋮ или внутри выпадающего меню)
+            if (!e.target.closest('.dialog-header-actions')) {
+                openCurrentChatInfo();
+                return;
+            }
         }
 
         const chatCard = e.target.closest('.card[data-chat-id]');
@@ -93,11 +191,6 @@ function initEventListeners() {
             closeCreateWindow();
             return;
         }
-
-        const cancelReply = e.target.closest('.cancel-reply-btn');
-        if (cancelReply) {
-            clearReply();
-        }
     });
 
     document.addEventListener('keydown', (e) => {
@@ -106,6 +199,38 @@ function initEventListeners() {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+
+        const profilePage = document.getElementById('createWindow');
+        if (profilePage && profilePage.style.display !== 'none') {
+            closeCreateWindow();
+            return;
+        }
+
+        const searchInputEl = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        const hasSearchValue = !!searchInputEl?.value?.trim();
+        const searchVisible = !!(
+            searchResults &&
+            searchResults.style.display !== 'none' &&
+            searchResults.innerHTML.trim()
+        );
+
+        if (hasSearchValue || searchVisible) {
+            clearSearch(false);
+            return;
+        }
+
+        if (state.currentChatId) {
+            if (history.state?.chatOpen) {
+                history.back();
+            } else {
+                closeChatView();
+            }
         }
     });
 
@@ -125,6 +250,89 @@ function initEventListeners() {
 }
 
 // ========================
+// УДАЛЕНИЕ ЧАТА
+// ========================
+async function deleteCurrentChat() {
+    if (!state.currentChatId) return;
+
+    if (!confirm("Вы уверены, что хотите удалить этот чат? Это действие необратимо.")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/v1/chats/${state.currentChatId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error('Ошибка удаления');
+        }
+
+        closeChatView();
+        refreshChatsDebounced();
+
+    } catch (error) {
+        console.error('Ошибка удаления чата:', error);
+        alert("Нет прав для удаления этого чата или произошла ошибка.");
+    }
+}
+
+
+// ========================
+// ИНФО О ТЕКУЩЕМ ЧАТЕ
+// ========================
+
+function openCurrentChatInfo() {
+    if (!state.currentChatId) return;
+
+    const card = document.querySelector(`.card[data-chat-id="${state.currentChatId}"]`);
+    const chatType = card?.dataset.chatType ?? 'private';
+
+    if (chatType === 'notes') {
+        return;
+    }
+
+    if (chatType === 'group') {
+        openGroupInfo(state.currentChatId);
+        return;
+    }
+
+    const userId = card?.dataset.userId || state.currentChatUserId;
+    if (userId) {
+        openUserProfile(userId);
+    }
+}
+
+// ========================
+// ЧАТЫ: СИНХРОНИЗАЦИЯ
+// ========================
+
+function refreshChatsDebounced(delay = 200) {
+    if (chatsRefreshTimer) {
+        clearTimeout(chatsRefreshTimer);
+    }
+
+    chatsRefreshTimer = setTimeout(() => {
+        chatsRefreshTimer = null;
+        refreshChatsNow();
+    }, delay);
+}
+
+async function refreshChatsNow() {
+    if (chatsRefreshInFlight) return;
+
+    try {
+        chatsRefreshInFlight = true;
+        await loadChats();
+    } catch (error) {
+        console.error('Ошибка обновления списка чатов:', error);
+    } finally {
+        chatsRefreshInFlight = false;
+    }
+}
+
+// ========================
 // HISTORY API
 // ========================
 
@@ -140,6 +348,7 @@ function closeChatView() {
     state.currentChatId = null;
     state.currentChatUserId = null;
     state.replyToId = null;
+    state.editMessageId = null; // Сбрасываем редактирование при закрытии
     attachmentManager = null;
 
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -152,82 +361,99 @@ function closeChatView() {
 }
 
 // ========================
-// ПРЕВЬЮ СООБЩЕНИЯ
+// PREVIEW ДЛЯ СПИСКА ЧАТОВ
 // ========================
 
-function getMessagePreview(msg) {
-    const text = msg?.text ?? msg?.content ?? '';
+function getPreviewText(msg) {
+    const text = typeof msg?.text === 'string' ? msg.text.trim() : '';
+    if (text) return text;
 
-    if (typeof text === 'string' && text.trim()) {
-        return text.trim();
-    }
-
-    const type = (msg?.type ?? '').toLowerCase();
+    const type = String(msg?.type || '').toLowerCase();
 
     if (type === 'image' || type === 'images') return '🖼 Фото';
     if (type === 'video') return '🎥 Видео';
     if (type === 'audio') return '🎵 Аудио';
-    if (type === 'file') return '📎 Файл';
+    if (type === 'file') {
+        const fileName = msg?.attachments?.[0]?.fileName;
+        return fileName ? `📎 ${fileName}` : '📎 Файл';
+    }
 
     if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
-        const first = msg.attachments[0];
-        const mime = first?.mimeType ?? '';
+        const attachment = msg.attachments[0];
+        const mime = String(attachment?.mimeType || '').toLowerCase();
 
         if (mime.startsWith('image/')) return '🖼 Фото';
         if (mime.startsWith('video/')) return '🎥 Видео';
         if (mime.startsWith('audio/')) return '🎵 Аудио';
-        return '📎 Файл';
+
+        return attachment?.fileName ? `📎 ${attachment.fileName}` : '📎 Файл';
     }
 
-    return 'Новое сообщение';
+    return 'Нет сообщений';
 }
 
-function updateChatPreview(msg) {
-    const chatId = String(msg.chatId);
-    const chatCard = document.querySelector(`.card[data-chat-id="${chatId}"]`);
+function moveChatCard(card) {
+    const container = card?.parentElement;
+    if (!container) return;
 
-    if (!chatCard) {
-        loadChats();
+    const isNotes = card.dataset.chatType === 'notes';
+
+    if (isNotes) {
+        container.prepend(card);
         return;
     }
 
-    const preview = getMessagePreview(msg);
+    const notesCard = container.querySelector('.card[data-chat-type="notes"]');
 
-    const timeEl = chatCard.querySelector('.message-time');
-    if (timeEl && msg.time) {
-        timeEl.textContent = msg.time;
+    if (notesCard && notesCard !== card) {
+        notesCard.insertAdjacentElement('afterend', card);
+    } else {
+        container.prepend(card);
     }
+}
 
-    const previewEl = chatCard.querySelector('.user-message');
+function updateChatPreview(msg) {
+    const card = document.querySelector(`.card[data-chat-id="${msg.chatId}"]`);
+    if (!card) return false;
+
+    const previewEl = card.querySelector('.user-message');
+    const timeEl = card.querySelector('.message-time');
+
     if (previewEl) {
-        previewEl.textContent = preview;
+        previewEl.textContent = getPreviewText(msg);
     }
 
-    const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
+    if (timeEl) {
+        const rawTime = msg.createdAt || msg.time;
+        if (rawTime) {
+            const date = new Date(rawTime);
+            if (!Number.isNaN(date.getTime())) {
+                timeEl.textContent = date.toLocaleTimeString('ru-RU', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        }
+    }
 
-    if (chatId !== String(state.currentChatId) && !isOwn) {
-        let badge = chatCard.querySelector('.unread-badge');
+    if (String(state.currentChatId) !== String(msg.chatId)) {
+        let badge = card.querySelector('.unread-badge');
+        const previewRow = card.querySelector('.message-preview');
 
-        if (!badge) {
+        if (!badge && previewRow) {
             badge = document.createElement('span');
             badge.className = 'unread-badge';
-            chatCard.querySelector('.message-preview')?.appendChild(badge);
+            previewRow.appendChild(badge);
         }
 
-        badge.textContent = String(parseInt(badge.textContent || '0', 10) + 1);
-    }
-
-    const container = document.getElementById('chatsContainer');
-    if (container && chatCard.parentElement === container) {
-        const firstCard = container.querySelector('.card:first-child');
-        const firstType = firstCard?.dataset?.chatType;
-
-        if (firstType === 'notes' && firstCard !== chatCard) {
-            firstCard.after(chatCard);
-        } else {
-            container.prepend(chatCard);
+        if (badge) {
+            const current = Number(badge.textContent || '0');
+            badge.textContent = String(current + 1);
         }
     }
+
+    moveChatCard(card);
+    return true;
 }
 
 // ========================
@@ -242,26 +468,82 @@ function onMessageReceived(frame) {
         return;
     }
 
+    if (msg.type === 'CHAT_LIST_UPDATE') {
+        const chatId = String(msg.chatId);
+
+        if (msg.action === 'removed' || msg.action === 'deleted') {
+            if (String(state.currentChatId) === chatId) {
+                closeChatView();
+            }
+        }
+
+        refreshChatsDebounced();
+        return;
+    }
+
+    // Обработка удаления сообщения
+    if (msg.type === 'MESSAGE_DELETED') {
+        const msgEl = document.querySelector(`.message[data-id="${msg.messageId}"]`);
+        if (msgEl) msgEl.remove();
+        return;
+    }
+
+    // Обработка редактирования сообщения
+    if (msg.type === 'MESSAGE_EDITED') {
+        const msgEl = document.querySelector(`.message[data-id="${msg.messageId}"]`);
+        if (msgEl) {
+            const textDiv = msgEl.querySelector('.msg-text');
+            if (textDiv) textDiv.textContent = msg.text;
+
+            // Обновляем текст в кнопке редактирования
+            const editBtn = msgEl.querySelector('.edit-btn');
+            if (editBtn) editBtn.dataset.text = msg.text;
+
+            // Добавляем метку (изм.), если её нет
+            const metaDiv = msgEl.querySelector('.message-meta');
+            if (metaDiv && !metaDiv.querySelector('.msg-edited-mark')) {
+                metaDiv.insertAdjacentHTML('afterbegin', '<span class="msg-edited-mark">(изм.)</span>');
+            }
+        }
+        return;
+    }
+
+    // Дедупликация новых сообщений
+    if (msg.id != null) {
+        const key = String(msg.id);
+        if (processedMessageIds.has(key)) {
+            return;
+        }
+        processedMessageIds.add(key);
+
+        if (processedMessageIds.size > PROCESSED_LIMIT) {
+            const iterator = processedMessageIds.values();
+            for (let i = 0; i < 100; i++) {
+                const next = iterator.next();
+                if (next.done) break;
+                processedMessageIds.delete(next.value);
+            }
+        }
+    }
+
     msg.own = Number(msg.senderId) === Number(state.currentUser?.id);
 
-    console.log('WS preview message:', msg);
+    console.log('WS message:', msg);
 
     const isCurrentChat = String(msg.chatId) === String(state.currentChatId);
 
     if (isCurrentChat) {
         const container = document.getElementById('messagesContainer');
-        if (!container) return;
-
-        if (!container.querySelector(`[data-id="${msg.id}"]`)) {
+        if (container && !container.querySelector(`[data-id="${msg.id}"]`)) {
             appendMessage(msg);
             startReadObserver();
         }
-
-        updateChatPreview(msg);
-        return;
     }
 
-    loadChats();
+    const updated = updateChatPreview(msg);
+    if (!updated) {
+        refreshChatsDebounced();
+    }
 }
 
 // ========================
@@ -279,7 +561,7 @@ export async function openChat(card) {
 
     const userId = card.dataset.userId;
     const userName = card.dataset.userName ?? 'Собеседник';
-    const userAvatar = card.dataset.userAvatar ?? DEFAULT_AVATAR;
+    const userAvatar = card.dataset.userAvatar ?? '';
     const chatType = card.dataset.chatType ?? 'private';
     let chatId = card.dataset.chatId;
 
@@ -300,6 +582,7 @@ export async function openChat(card) {
     state.currentChatId = chatId;
     state.currentChatUserId = userId || null;
     state.replyToId = null;
+    state.editMessageId = null;
 
     pushChatState(chatId);
 
@@ -311,16 +594,19 @@ export async function openChat(card) {
     const dialog = document.getElementById('mainDialog');
     if (!dialog) return;
 
-    dialog.classList.remove('empty-dialog');
-    dialog.innerHTML = `
-        <div class="dialog-header">
-            <div class="dialog-header-info">
-                ${isNotes
+    const avatarBlock = isNotes
         ? `<div class="notes-avatar" style="flex-shrink:0">📝</div>`
         : isGroup
-            ? `<div class="notes-avatar" style="flex-shrink:0">👥</div>`
-            : `<img class="avatar-img" src="${userAvatar}" alt="">`
-    }
+            ? (userAvatar
+                ? `<img class="avatar-img" src="${escapeHtml(userAvatar)}" alt="">`
+                : `<div class="notes-avatar" style="flex-shrink:0">👥</div>`)
+            : `<img class="avatar-img" src="${escapeHtml(userAvatar || DEFAULT_AVATAR)}" alt="">`;
+
+    dialog.classList.remove('empty-dialog');
+    dialog.innerHTML = `
+        <div class="dialog-header" data-chat-type="${chatType}">
+            <div class="dialog-header-info">
+                ${avatarBlock}
                 <div class="dialog-header-text">
                     <span class="dialog-name">
                         ${isNotes ? 'Заметки' : escapeHtml(userName)}
@@ -330,8 +616,11 @@ export async function openChat(card) {
                     </span>
                 </div>
             </div>
-            <div class="dialog-header-actions">
-                <button class="icon-btn" type="button">⋮</button>
+            <div class="dialog-header-actions" style="position: relative;">
+                <button class="icon-btn" id="chatOptionsBtn" type="button">⋮</button>
+                <div class="chat-options-menu" id="chatOptionsMenu" style="display: none;">
+                    <button class="chat-option-btn danger" id="deleteChatBtn" type="button">Удалить чат</button>
+                </div>
             </div>
         </div>
 
@@ -407,11 +696,15 @@ async function loadUserStatus(userId) {
 }
 
 // ========================
-// ОТВЕТ НА СООБЩЕНИЕ
+// ОТВЕТ НА СООБЩЕНИЕ И РЕДАКТИРОВАНИЕ
 // ========================
 
 export function setReply(messageId, messageText) {
     state.replyToId = messageId;
+    state.editMessageId = null; // Если нажали Ответить - сбрасываем редактирование
+
+    const label = document.querySelector('.reply-preview-label');
+    if (label) label.textContent = 'Ответ на:';
 
     const replyPreview = document.getElementById('replyPreview');
     const replyText = document.getElementById('replyPreviewText');
@@ -427,7 +720,11 @@ export function setReply(messageId, messageText) {
         replyPreview.style.display = 'flex';
     }
 
-    document.getElementById('messageInput')?.focus();
+    const input = document.getElementById('messageInput');
+    if (input) {
+        input.value = ''; // Очищаем инпут при ответе
+        input.focus();
+    }
 }
 
 function clearReply() {
@@ -439,7 +736,7 @@ function clearReply() {
 }
 
 // ========================
-// ОТПРАВКА СООБЩЕНИЯ
+// ОТПРАВКА СООБЩЕНИЯ (И РЕДАКТИРОВАНИЕ)
 // ========================
 
 async function sendMessage() {
@@ -447,6 +744,35 @@ async function sendMessage() {
     if (!input || !state.currentChatId) return;
 
     const content = input.value.trim();
+
+    // 1. ЕСЛИ ЭТО РЕЖИМ РЕДАКТИРОВАНИЯ
+    if (state.editMessageId) {
+        if (!content) return; // Нельзя сделать сообщение пустым
+
+        try {
+            await fetch(`/api/v1/messages/${state.editMessageId}`, {
+                method: 'PATCH',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: content })
+            });
+
+            // Очистка состояния после успешного редактирования
+            input.value = '';
+            input.style.height = 'auto';
+            clearReply();
+            state.editMessageId = null;
+            const label = document.querySelector('.reply-preview-label');
+            if (label) label.textContent = 'Ответ на:';
+
+        } catch (error) {
+            console.error('Ошибка редактирования сообщения:', error);
+            alert("Ошибка при редактировании сообщения");
+        }
+        return;
+    }
+
+    // 2. ОБЫЧНАЯ ОТПРАВКА
     const hasFiles = attachmentManager?.hasFiles() ?? false;
 
     if (!content && !hasFiles) return;
@@ -487,12 +813,11 @@ async function sendMessageWithFiles(text, input) {
             createdMessage.own = Number(createdMessage.senderId) === Number(state.currentUser?.id);
 
             if (String(createdMessage.chatId) === String(state.currentChatId)) {
-                updateChatPreview(createdMessage);
                 appendMessage(createdMessage);
                 startReadObserver();
-            } else {
-                loadChats();
             }
+
+            refreshChatsDebounced();
         }
 
         input.value = '';
@@ -540,6 +865,8 @@ async function sendMessageHttp(content, input) {
         input.value = '';
         input.style.height = 'auto';
         clearReply();
+
+        refreshChatsDebounced();
 
     } catch (error) {
         console.error('Ошибка HTTP отправки:', error);

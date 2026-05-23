@@ -11,7 +11,8 @@ import java.util.Set;
 
 public final class UserRowMapper {
 
-    private UserRowMapper() {}
+    private UserRowMapper() {
+    }
 
     /**
      * ResultSetExtractor — для запросов с LEFT JOIN user_roles.
@@ -26,17 +27,17 @@ public final class UserRowMapper {
 
             if (user == null) {
                 user = mapUserFields(rs);
-            } else if (user.getId() != currentId) {
-                // защита: SQL вернул нескольких юзеров — обрабатываем только первого
+            } else if (!user.getId().equals(currentId)) {
+                // SQL вернул нескольких пользователей — берём только первого
                 break;
             }
 
             String role = rs.getString("user_role");
-            if (role != null) {
+            if (role != null && !role.isBlank()) {
                 try {
                     roles.add(Role.valueOf(role));
-                } catch (IllegalArgumentException e) {
-                    // неизвестная роль в БД — игнорируем
+                } catch (IllegalArgumentException ignored) {
+                    // неизвестная роль в БД — пропускаем
                 }
             }
         }
@@ -44,36 +45,64 @@ public final class UserRowMapper {
         if (user != null) {
             user.setRoles(roles);
         }
+
         return user;
     }
 
     /**
      * Базовый маппинг одной строки.
-     * Используется для поиска (без ролей).
+     * Используется в списках / поиске.
      */
     public static User mapBasicRow(ResultSet rs) throws SQLException {
-        return mapUserFields(rs);
+        User user = mapUserFields(rs);
+
+        String role = null;
+        try {
+            role = rs.getString("user_role");
+        } catch (SQLException ignored) {
+            // колонка может отсутствовать в некоторых select'ах
+        }
+
+        if (role != null && !role.isBlank()) {
+            Set<Role> roles = new HashSet<>();
+            try {
+                roles.add(Role.valueOf(role));
+            } catch (IllegalArgumentException ignored) {
+                // ignore bad db value
+            }
+            user.setRoles(roles);
+        }
+
+        return user;
     }
 
     private static User mapUserFields(ResultSet rs) throws SQLException {
         User user = new User();
+
         user.setId(rs.getLong("user_id"));
         user.setUsername(rs.getString("user_username"));
         user.setEmail(rs.getString("user_email"));
         user.setEmailVerified(rs.getBoolean("user_email_verified"));
         user.setEmailNotifications(rs.getBoolean("user_email_notifications"));
+        user.setBlocked(rs.getBoolean("user_blocked"));
         user.setPassword(rs.getString("user_password"));
         user.setAvatarUrl(rs.getString("user_avatar_url"));
         user.setStatus(rs.getString("user_status"));
 
         Timestamp lastSeen = rs.getTimestamp("user_last_seen");
-        if (lastSeen != null) user.setLastSeen(lastSeen.toLocalDateTime());
+        if (lastSeen != null) {
+            user.setLastSeen(lastSeen.toLocalDateTime());
+        }
 
         Timestamp createdAt = rs.getTimestamp("user_created_at");
-        if (createdAt != null) user.setCreatedAt(createdAt.toLocalDateTime());
+        if (createdAt != null) {
+            user.setCreatedAt(createdAt.toLocalDateTime());
+        }
 
         Timestamp updatedAt = rs.getTimestamp("user_updated_at");
-        if (updatedAt != null) user.setUpdatedAt(updatedAt.toLocalDateTime());
+        if (updatedAt != null) {
+            user.setUpdatedAt(updatedAt.toLocalDateTime());
+        }
 
         return user;
     }

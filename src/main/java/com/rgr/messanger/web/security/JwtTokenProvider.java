@@ -195,4 +195,19 @@ public class JwtTokenProvider {
                 .map(Enum::name)
                 .toList();
     }
+
+    public List<String> getRoles(String token) {
+        try {
+            Object roles = parseClaims(token).get(CLAIM_ROLES);
+            if (roles instanceof List<?> list) {
+                return list.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .map(Object::toString)
+                        .toList();
+            }
+            return List.of();
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
 }

@@ -28,15 +28,37 @@ public class ChatRepoImpl implements ChatRepo {
     private static final String FIND_BY_USER_ID = """
         SELECT
             c.id AS chat_id,
-            c.type AS chat_type,
-            c.name AS chat_name,
+            CASE
+                WHEN c.type = 'private'
+                     AND c.name = ?
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM chat_members cmx
+                         WHERE cmx.chat_id = c.id
+                           AND cmx.user_id <> ?
+                     )
+                THEN 'notes'
+                ELSE c.type
+            END AS chat_type,
+            CASE
+                WHEN c.type = 'private'
+                     AND c.name = ?
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM chat_members cmx
+                         WHERE cmx.chat_id = c.id
+                           AND cmx.user_id <> ?
+                     )
+                THEN ?
+                ELSE c.name
+            END AS chat_name,
             c.avatar_url AS chat_avatar_url,
             c.created_at AS chat_created_at,
             c.updated_at AS chat_updated_at,
 
-            m.text AS last_message_text,
-            m.type AS last_message_type,
-            m.send_date AS last_message_time,
+            lm.text AS last_message_text,
+            lm.type AS last_message_type,
+            lm.send_date AS last_message_time,
 
             CASE
                 WHEN c.type = 'private' AND other_user.id IS NOT NULL THEN other_user.id
@@ -53,20 +75,7 @@ public class ChatRepoImpl implements ChatRepo {
                 ELSE NULL
             END AS interlocutor_avatar,
 
-            COUNT(unread.id) AS unread_count,
-
-            CASE
-                WHEN c.type = 'private'
-                     AND c.name = ?
-                     AND NOT EXISTS (
-                         SELECT 1
-                         FROM chat_members cmx
-                         WHERE cmx.chat_id = c.id
-                           AND cmx.user_id <> ?
-                     )
-                THEN TRUE
-                ELSE FALSE
-            END AS is_notes
+            COUNT(unread.id) AS unread_count
 
         FROM chats c
         JOIN chat_members cm
@@ -79,16 +88,17 @@ public class ChatRepoImpl implements ChatRepo {
                 FROM chat_members cm2
                 WHERE cm2.chat_id = c.id
                   AND cm2.user_id <> ?
+                ORDER BY cm2.user_id
                 LIMIT 1
             )
 
-        LEFT JOIN messages m
-            ON m.id = (
+        LEFT JOIN messages lm
+            ON lm.id = (
                 SELECT m2.id
                 FROM messages m2
                 WHERE m2.chat_id = c.id
                   AND m2.is_deleted = FALSE
-                ORDER BY m2.send_date DESC
+                ORDER BY m2.send_date DESC, m2.id DESC
                 LIMIT 1
             )
 
@@ -105,12 +115,24 @@ public class ChatRepoImpl implements ChatRepo {
 
         GROUP BY
             c.id, c.type, c.name, c.avatar_url, c.created_at, c.updated_at,
-            m.text, m.type, m.send_date,
+            lm.id, lm.text, lm.type, lm.send_date,
             other_user.id, other_user.username, other_user.avatar_url
 
         ORDER BY
-            is_notes DESC,
-            COALESCE(m.send_date, c.created_at) DESC
+            CASE
+                WHEN c.type = 'private'
+                     AND c.name = ?
+                     AND NOT EXISTS (
+                         SELECT 1
+                         FROM chat_members cmx
+                         WHERE cmx.chat_id = c.id
+                           AND cmx.user_id <> ?
+                     )
+                THEN 0
+                ELSE 1
+            END,
+            COALESCE(lm.send_date, c.created_at) DESC,
+            c.id DESC
         """;
 
     @Override
@@ -138,18 +160,15 @@ public class ChatRepoImpl implements ChatRepo {
                         dto.setLastMessageTime(lastTime.toLocalDateTime());
                     }
 
-                    Boolean isNotes = rs.getObject("is_notes", Boolean.class);
-                    if (Boolean.TRUE.equals(isNotes)) {
-                        dto.setType("notes");
-                        dto.setName(NOTES_CHAT_NAME);
-                        dto.setInterlocutorId(null);
-                        dto.setInterlocutorName(null);
-                        dto.setInterlocutorAvatar(null);
-                    }
-
                     return dto;
                 },
-                NOTES_CHAT_NAME, userId, userId, userId, userId, userId
+                NOTES_CHAT_NAME, userId,
+                NOTES_CHAT_NAME, userId, NOTES_CHAT_NAME,
+                userId,
+                userId,
+                userId,
+                userId,
+                NOTES_CHAT_NAME, userId
         );
     }
 
@@ -390,5 +409,42 @@ public class ChatRepoImpl implements ChatRepo {
 
     private boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+
+    private static final String GET_MEMBERS_DETAILED = """
+    SELECT u.id          AS user_id,
+           u.username    AS user_username,
+           u.avatar_url  AS user_avatar_url,
+           u.status      AS user_status,
+           cm.role       AS member_role
+    FROM chat_members cm
+    JOIN users u ON u.id = cm.user_id
+    WHERE cm.chat_id = ?
+    ORDER BY
+        CASE cm.role
+            WHEN 'owner' THEN 0
+            WHEN 'admin' THEN 1
+            ELSE 2
+        END,
+        u.username
+    """;
+
+    @Override
+    public List<com.rgr.messanger.web.dto.chat.ChatMemberResponse> getMembersDetailed(Long chatId) {
+        return jdbcTemplate.query(
+                GET_MEMBERS_DETAILED,
+                (rs, rowNum) -> {
+                    com.rgr.messanger.web.dto.chat.ChatMemberResponse dto =
+                            new com.rgr.messanger.web.dto.chat.ChatMemberResponse();
+                    dto.setId(rs.getLong("user_id"));
+                    dto.setUsername(rs.getString("user_username"));
+                    dto.setAvatarUrl(rs.getString("user_avatar_url"));
+                    dto.setStatus(rs.getString("user_status"));
+                    dto.setRole(rs.getString("member_role"));
+                    return dto;
+                },
+                chatId
+        );
     }
 }

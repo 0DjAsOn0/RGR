@@ -11,13 +11,15 @@ import java.util.Set;
 
 public final class JwtEntityFactory {
 
-    private JwtEntityFactory() {}
+    private JwtEntityFactory() {
+    }
 
     public static JwtEntity create(User user) {
         return new JwtEntity(
                 user.getId(),
                 user.getUsername(),
                 user.getPassword(),
+                user.isBlocked(),
                 mapToGrantedAuthorities(user.getRoles())
         );
     }
@@ -26,6 +28,7 @@ public final class JwtEntityFactory {
         if (roles == null || roles.isEmpty()) {
             return Collections.emptyList();
         }
+
         return roles.stream()
                 .map(Enum::name)
                 .map(SimpleGrantedAuthority::new)

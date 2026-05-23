@@ -258,6 +258,7 @@
     border-bottom: 1px solid var(--border-dark);
     min-height: 60px;
     flex-shrink: 0;
+    cursor: pointer;
 }
 
 .dialog-header-info {
@@ -294,7 +295,6 @@
     padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
     background-color: var(--bg-panel);
 }
 
@@ -314,85 +314,6 @@
 .dialog-messages::-webkit-scrollbar-thumb {
     background-color: #2b3e50;
     border-radius: 10px;
-}
-
-.message {
-    display: flex;
-    max-width: 65%;
-}
-
-.message-in {
-    align-self: flex-start;
-}
-
-.message-out {
-    align-self: flex-end;
-}
-
-.message-bubble {
-    padding: 6px 10px 4px;
-    border-radius: 12px;
-    word-break: break-word;
-    display: flex;
-    max-width: 100%;
-}
-
-.message-out .message-bubble {
-    border-radius: 16px 16px 4px 16px;
-    background: var(--bg-message-out);
-}
-
-.message-in .message-bubble {
-    border-radius: 16px 16px 16px 4px;
-    background: var(--bg-message-in);
-}
-
-.message-sender {
-    font-size: 12px;
-    font-weight: bold;
-    color: var(--text-accent);
-    display: block;
-    margin-bottom: 2px;
-}
-
-.message-text {
-    color: #e8f1f8;
-    font-size: 14px;
-    line-height: 1.5;
-    margin: 0;
-    display: flex;
-    padding: 8px 12px;
-}
-
-.message-meta {
-    float: right;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    margin-left: 8px;
-    margin-top: 4px;
-    margin-bottom: -2px;
-}
-
-.message-time-small {
-    color: var(--text-muted);
-    font-size: 11px;
-    white-space: nowrap;
-    line-height: 1;
-}
-
-.message-out .message-time-small {
-    color: #8ab4d4;
-}
-
-.status-icon {
-    display: inline-flex;
-    align-items: center;
-    margin-bottom: 1px;
-}
-
-.status-icon svg {
-    display: block;
 }
 
 .dialog-input-area {
@@ -461,11 +382,272 @@
     filter: invert(0.5);
 }
 
-.attachment-icon {
-    height: 24px;
-    width: 24px;
+/* =========================================
+   СООБЩЕНИЯ (ПУЗЫРИ) - ТЕЛЕГРАМ СТИЛЬ
+========================================= */
+
+.message {
+    position: relative; /* Обязательно для позиционирования меню */
+    display: flex;
+    width: 100%;
+    margin-bottom: 6px; /* Плотный список сообщений */
+    align-items: flex-end; /* Чтобы сообщения в ряду выглядели аккуратно */
 }
 
+.message-in {
+    justify-content: flex-start;
+}
+
+.message-out {
+    justify-content: flex-end;
+}
+
+.message-bubble {
+    position: relative; /* Важно для позиционирования меню */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Всё внутри по левому краю */
+    max-width: 75%;
+    min-width: 60px;
+    padding: 6px 10px 8px 10px; /* Телеграм-отступы */
+    border-radius: 12px;
+    background-color: #182533;
+    color: #eaf2ff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    word-wrap: break-word;
+    box-sizing: border-box;
+}
+
+.message-out .message-bubble {
+    background-color: #2b5278;
+}
+
+/* 1. НИКНЕЙМ */
+.message-sender {
+    font-size: 14px;
+    font-weight: 600;
+    color: #64b5ef;
+    margin-bottom: 2px;
+    line-height: 1.1;
+    text-align: left;
+    width: 100%;
+}
+
+.message-out .message-sender {
+    display: none;
+}
+
+/* 2. ТЕКСТ СООБЩЕНИЯ */
+.msg-text, .message-text {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #e8f1f8;
+    margin: 0 !important;
+    padding: 0 !important; /* Текст ровно под ником */
+    display: block !important;
+    text-align: left;
+    width: 100%;
+}
+
+/* 3. ВЛОЖЕНИЯ */
+.msg-attachment {
+    margin-top: 4px;
+    margin-bottom: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+
+.msg-image {
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+}
+
+.attachment-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #fff;
+    margin: 0;
+}
+
+/* 4. ВРЕМЯ  */
+.message-meta {
+    align-self: flex-end; /* Прижимаем время вправо вниз */
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    margin-bottom: -2px;
+    margin-right: -2px;
+}
+
+.message-time-small {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.message-out .message-time-small {
+    color: #8ab4d4;
+}
+
+.status-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 1px;
+}
+
+.status-icon svg {
+    display: block;
+}
+
+/* =========================================
+   АУДИО СООБЩЕНИЯ
+========================================= */
+.message-bubble .msg-audio {
+    width: 260px !important;
+    max-width: 100% !important;
+    height: 40px !important;
+    margin: 4px 0 !important;
+    border-radius: 20px;
+    outline: none;
+    filter: invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.8);
+}
+
+/* =========================================
+   МЕНЮ СООБЩЕНИЯ (Редактировать / Удалить)
+========================================= */
+
+/* Контейнер для кнопок, изначально скрыт */
+.msg-actions {
+    position: absolute;
+    top: 50%; /* Центрируем по вертикали относительно пузыря */
+    transform: translateY(-50%) scale(0.9);
+    display: flex;
+    gap: 4px;
+    background-color: rgba(36, 52, 71, 0.85); /* Полупрозрачный фон */
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px; /* Скругленный контейнер (pill) */
+    padding: 4px 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease-in-out;
+    z-index: 10;
+}
+
+/* Показываем при наведении на строку сообщения */
+.message:hover .msg-actions {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) scale(1);
+}
+
+/* Для исходящих (своих) сообщений - меню СЛЕВА от пузыря */
+.message-out .msg-actions {
+    right: calc(100% + 8px);
+}
+
+/* Для входящих (чужих) сообщений - меню СПРАВА от пузыря */
+.message-in .msg-actions {
+    display: none !important;
+    left: calc(100% + 8px);
+}
+
+/* Сами кнопки */
+.msg-action-btn {
+    background: transparent;
+    border: none;
+    color: #9db0c6;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    width: 32px;
+    height: 32px;
+}
+
+.msg-action-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Красная кнопка удаления при наведении */
+.msg-action-btn.delete-btn:hover {
+    background-color: rgba(239, 83, 80, 0.15);
+    color: #ef5350;
+}
+
+.msg-action-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+/* Метка (изм.) */
+.msg-edited-mark {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    margin-right: 4px;
+}
+
+/* =========================================
+   МЕНЮ ОПЦИЙ ЧАТА (В ШАПКЕ)
+========================================= */
+.chat-options-menu {
+    position: absolute;
+    top: 100%;
+    right: 16px;
+    margin-top: 4px;
+    background-color: #243447;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
+    overflow: hidden;
+}
+
+.chat-option-btn {
+    background: transparent;
+    border: none;
+    padding: 10px 16px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+    color: #eaf2ff;
+}
+
+.chat-option-btn.danger {
+    color: #ef5350; /* Красный цвет */
+    font-weight: 500;
+}
+
+.chat-option-btn.danger:hover {
+    background-color: rgba(239, 83, 80, 0.1);
+}
+
+/* =========================================
+   МЕДИА ЗАПРОСЫ
+========================================= */
 @media (max-width: 768px) {
     .nav-elements {
         width: 56px;

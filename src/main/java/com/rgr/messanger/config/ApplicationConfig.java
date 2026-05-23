@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -20,10 +21,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import javax.sql.DataSource;
-
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor(onConstructor_ = @__(@Lazy))
 public class ApplicationConfig {
 
@@ -50,7 +50,8 @@ public class ApplicationConfig {
 
     @Bean
     public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration configuration) throws Exception {
+            AuthenticationConfiguration configuration
+    ) throws Exception {
         return configuration.getAuthenticationManager();
     }
 
@@ -68,9 +69,12 @@ public class ApplicationConfig {
                         .requestMatchers(PUBLIC_PAGES).permitAll()
                         .requestMatchers(STATIC_RESOURCES).permitAll()
                         .requestMatchers(PUBLIC_API).permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .addFilterBefore(new JwtTokenFilter(tokenProvider),
-                        UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(
+                        new JwtTokenFilter(tokenProvider),
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }
@@ -79,6 +83,7 @@ public class ApplicationConfig {
         return (request, response, ex) -> {
             if (request.getRequestURI().startsWith("/api/")) {
                 response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                response.setContentType("text/plain;charset=UTF-8");
                 response.getWriter().write("Unauthorized.");
             } else {
                 response.sendRedirect("/login");
@@ -89,6 +94,7 @@ public class ApplicationConfig {
     private AccessDeniedHandler accessDeniedHandler() {
         return (request, response, ex) -> {
             response.setStatus(HttpStatus.FORBIDDEN.value());
+            response.setContentType("text/plain;charset=UTF-8");
             response.getWriter().write("Forbidden.");
         };
     }

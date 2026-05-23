@@ -2,7 +2,7 @@ import { escapeHtml } from './utils.js';
 import { fetchChats, searchUsers as apiSearchUsers, fetchOrCreateChat } from './api.js';
 import { openChat, state } from './app.js';
 
-const DEFAULT_AVATAR = 'avatars/default.png';
+const DEFAULT_AVATAR = '/avatars/default.png';
 
 let searchTimeout = null;
 let searchRequestId = 0;
@@ -23,10 +23,10 @@ export async function loadChats() {
 }
 
 function getLastMessagePreview(chat) {
-    const text = chat.lastMessage;
-    const type = chat.lastMessageType;
+    const text = typeof chat.lastMessage === 'string' ? chat.lastMessage.trim() : '';
+    const type = String(chat.lastMessageType || '').toLowerCase();
 
-    if (text && text.trim()) return escapeHtml(text);
+    if (text) return escapeHtml(text);
 
     switch (type) {
         case 'image':
@@ -72,9 +72,15 @@ export function renderChatList(chats) {
                 : (chat.interlocutorName ?? chat.name ?? 'Чат');
 
         const escapedName = escapeHtml(rawName);
-        const avatar = (isNotes || isGroup)
-            ? null
-            : (chat.interlocutorAvatar ?? DEFAULT_AVATAR);
+
+        const groupAvatar = isGroup ? (chat.avatarUrl ?? null) : null;
+        const privateAvatar = !isNotes && !isGroup
+            ? (chat.interlocutorAvatar ?? DEFAULT_AVATAR)
+            : null;
+
+        const datasetAvatar = isGroup
+            ? (groupAvatar ?? '')
+            : (privateAvatar ?? '');
 
         const preview = getLastMessagePreview(chat);
 
@@ -83,15 +89,17 @@ export function renderChatList(chats) {
                 data-chat-id="${chat.id}"
                 data-user-id="${chat.interlocutorId ?? ''}"
                 data-user-name="${escapeHtml(rawName)}"
-                data-user-avatar="${escapeHtml(avatar ?? '')}"
+                data-user-avatar="${escapeHtml(datasetAvatar)}"
                 data-chat-type="${chatType}">
                 <div class="chat-card">
                     <div class="avatar">
                         ${isNotes
             ? `<div class="notes-avatar">📝</div>`
             : isGroup
-                ? `<div class="notes-avatar">👥</div>`
-                : `<img class="avatar-img" src="${escapeHtml(avatar)}" alt="">`
+                ? (groupAvatar
+                    ? `<img class="avatar-img" src="${escapeHtml(groupAvatar)}" alt="">`
+                    : `<div class="notes-avatar">👥</div>`)
+                : `<img class="avatar-img" src="${escapeHtml(privateAvatar)}" alt="">`
         }
                     </div>
                     <div class="card-content">
