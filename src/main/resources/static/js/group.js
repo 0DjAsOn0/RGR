@@ -75,10 +75,12 @@ function resetModal() {
     const groupName = document.getElementById('groupName');
     const memberSearch = document.getElementById('groupMemberSearch');
     const results = document.getElementById('groupSearchResults');
+    const isPublicCheckbox = document.getElementById('isPublicCheckbox'); // ✅ Сброс чекбокса
 
     if (groupName) groupName.value = '';
     if (memberSearch) memberSearch.value = '';
     if (results) results.innerHTML = '';
+    if (isPublicCheckbox) isPublicCheckbox.checked = false; // ✅ Сброс чекбокса
 }
 
 // ========================
@@ -193,16 +195,19 @@ async function createGroup() {
     const groupNameInput = document.getElementById('groupName');
     const modal = document.getElementById('createGroupModal');
     const createBtn = document.getElementById('createGroupBtn');
+    const isPublicCheckbox = document.getElementById('isPublicCheckbox'); // ✅ Читаем чекбокс
 
     const name = groupNameInput?.value.trim() ?? '';
+    const isPublic = isPublicCheckbox ? isPublicCheckbox.checked : false; // ✅ Статус публичности
 
     if (!name) {
         alert('Введите название группы');
         return;
     }
 
-    if (selectedUsers.size === 0) {
-        alert('Добавьте хотя бы одного участника');
+    // Если группа приватная — заставляем добавить хоть кого-то. Если публичная — можно создать пустую!
+    if (selectedUsers.size === 0 && !isPublic) {
+        alert('Добавьте хотя бы одного участника для приватной группы');
         return;
     }
 
@@ -217,7 +222,8 @@ async function createGroup() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name,
-                memberIds: [...selectedUsers.keys()]
+                memberIds: [...selectedUsers.keys()],
+                isPublic: isPublic // ✅ Отправляем флаг на сервер
             })
         });
 

@@ -1,17 +1,14 @@
 package com.rgr.messanger.web.dto.chat;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
-
+import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 @Data
 public class CreateGroupRequest {
 
     @NotBlank(message = "Название группы не может быть пустым")
-    @Size(min = 2, max = 100, message = "Название должно быть от 2 до 100 символов")
     private String name;
-
     private List<Long> memberIds;
+    private Boolean isPublic;
 }

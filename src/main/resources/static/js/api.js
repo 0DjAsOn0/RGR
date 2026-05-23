@@ -67,3 +67,11 @@ export async function setOffline() {
         });
     } catch (_) {}
 }
+
+export async function searchPublicGroups(query) {
+    const response = await fetch(`/api/v1/chats/search?query=${encodeURIComponent(query)}`, {
+        credentials: 'include'
+    });
+    if (!response.ok) return [];
+    return await response.json();
+}

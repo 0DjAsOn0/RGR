@@ -1,5 +1,5 @@
 import { escapeHtml } from './utils.js';
-import { fetchChats, searchUsers as apiSearchUsers, fetchOrCreateChat } from './api.js';
+import { fetchChats, searchUsers, searchPublicGroups, fetchOrCreateChat } from './api.js';
 import { openChat, state } from './app.js';
 
 const DEFAULT_AVATAR = '/avatars/default.png';
@@ -122,100 +122,130 @@ export function renderChatList(chats) {
 }
 
 // ========================
-// ПОИСК
+// ПОИСК (ПОЛЬЗОВАТЕЛИ + ГРУППЫ)
 // ========================
 
-export function handleSearch(value) {
-    clearTimeout(searchTimeout);
-
+export async function handleSearch(query) {
     const searchResults = document.getElementById('searchResults');
     const chatsContainer = document.getElementById('chatsContainer');
 
-    if (!searchResults || !chatsContainer) return;
+    clearTimeout(searchTimeout);
 
-    const query = value?.trim() ?? '';
-
-    if (query.length < 2) {
-        searchResults.style.display = 'none';
-        searchResults.innerHTML = '';
-        chatsContainer.style.display = 'block';
+    if (!query || query.trim().length < 2) {
+        searchRequestId++;
+        if (searchResults) {
+            searchResults.innerHTML = '';
+            searchResults.style.display = 'none';
+        }
+        if (chatsContainer) chatsContainer.style.display = 'block';
         return;
     }
 
     searchTimeout = setTimeout(async () => {
-        await doSearch(query);
-    }, 400);
+        const currentRequestId = ++searchRequestId;
+
+        if (searchResults) {
+            searchResults.style.display = 'block';
+            searchResults.innerHTML = '<div style="padding: 15px; text-align: center; color: #888;">Поиск...</div>';
+        }
+        if (chatsContainer) chatsContainer.style.display = 'none';
+
+        try {
+            const [users, groups] = await Promise.all([
+                searchUsers(query),
+                searchPublicGroups(query)
+            ]);
+
+            if (currentRequestId !== searchRequestId) return;
+
+            renderCombinedSearchResults(users, groups);
+
+        } catch (error) {
+            if (currentRequestId !== searchRequestId) return;
+            console.error('Ошибка поиска:', error);
+            if (searchResults) {
+                searchResults.innerHTML = '<div style="padding: 15px; text-align: center; color: #c62828;">Ошибка при поиске</div>';
+            }
+        }
+    }, 300);
 }
 
-async function doSearch(query) {
-    const currentRequestId = ++searchRequestId;
-
-    const searchResults = document.getElementById('searchResults');
-    const chatsContainer = document.getElementById('chatsContainer');
-
-    if (!searchResults || !chatsContainer) return;
-
-    try {
-        searchResults.style.display = 'block';
-        searchResults.innerHTML = '<li class="search-loading">Поиск...</li>';
-        chatsContainer.style.display = 'none';
-
-        const users = await apiSearchUsers(query);
-
-        if (currentRequestId !== searchRequestId) {
-            return;
-        }
-
-        renderSearchResults(users);
-
-    } catch (error) {
-        if (currentRequestId !== searchRequestId) {
-            return;
-        }
-
-        console.error('Ошибка поиска:', error);
-        searchResults.innerHTML = '<li class="search-error">Ошибка поиска</li>';
-    }
-}
-
-export function renderSearchResults(users) {
+function renderCombinedSearchResults(users, groups) {
     const searchResults = document.getElementById('searchResults');
     if (!searchResults) return;
 
-    if (!users || users.length === 0) {
-        searchResults.innerHTML = '<li class="no-results">Пользователи не найдены</li>';
-        return;
-    }
+    searchResults.innerHTML = '';
+    let hasResults = false;
 
-    searchResults.innerHTML = users.map(user => {
-        const username = user.username ?? 'Пользователь';
-        const avatarUrl = user.avatarUrl ?? DEFAULT_AVATAR;
+    // 1. Отрисовка пользователей
+    const filteredUsers = (users || []).filter(u => u.id !== state.currentUser?.id);
 
-        return `
-            <li class="card search-card"
-                data-user-id="${user.id}"
-                data-user-name="${escapeHtml(username)}"
-                data-user-avatar="${escapeHtml(avatarUrl)}">
-                <div class="chat-card">
-                    <div class="avatar">
-                        <img class="avatar-img"
-                             src="${escapeHtml(avatarUrl)}"
-                             alt="">
-                    </div>
-                    <div class="card-content">
-                        <div class="name-time">
-                            <span class="user-name">${escapeHtml(username)}</span>
-                            <span class="user-status-badge ${user.status === 'online' ? 'online' : ''}">
-                                ${user.status === 'online' ? 'в сети' : ''}
-                            </span>
+    if (filteredUsers.length > 0) {
+        hasResults = true;
+        searchResults.innerHTML += `<div style="padding: 8px 15px; font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase;">Пользователи</div>`;
+
+        filteredUsers.forEach(u => {
+            const avatarUrl = u.avatarUrl ?? DEFAULT_AVATAR;
+            const statusLabel = u.status === 'online' ? 'в сети' : 'Нажмите, чтобы написать';
+            const statusClass = u.status === 'online' ? 'online' : '';
+
+            searchResults.innerHTML += `
+                <div class="card search-card" data-user-id="${u.id}" data-user-name="${escapeHtml(u.username)}" data-user-avatar="${escapeHtml(avatarUrl)}">
+                    <div class="chat-card">
+                        <div class="avatar">
+                            <img class="avatar-img" src="${escapeHtml(avatarUrl)}" alt="">
                         </div>
-                        <span class="user-message">Нажмите чтобы написать</span>
+                        <div class="card-content">
+                            <div class="name-time">
+                                <span class="user-name">${escapeHtml(u.username)}</span>
+                                <span class="user-status-badge ${statusClass}">
+                                    ${u.status === 'online' ? 'в сети' : ''}
+                                </span>
+                            </div>
+                            <span class="user-message">${statusLabel}</span>
+                        </div>
                     </div>
                 </div>
-            </li>
-        `;
-    }).join('');
+            `;
+        });
+    }
+
+    // 2. Отрисовка публичных групп
+    if (groups && groups.length > 0) {
+        hasResults = true;
+        searchResults.innerHTML += `<div style="padding: 8px 15px; font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; margin-top: 10px;">Публичные группы</div>`;
+
+        groups.forEach(g => {
+            const avatarUrl = g.avatarUrl ?? DEFAULT_AVATAR;
+            const groupName = g.name ?? 'Группа';
+
+            // ✅ ЗДЕСЬ ДОБАВЛЕН КЛАСС search-public-group
+            searchResults.innerHTML += `
+                <div class="card search-public-group" data-chat-id="${g.id}" data-chat-type="group" data-user-name="${escapeHtml(groupName)}" data-user-avatar="${escapeHtml(avatarUrl)}">
+                    <div class="chat-card">
+                        <div class="avatar">
+                            <img class="avatar-img" src="${escapeHtml(avatarUrl)}" alt="">
+                        </div>
+                        <div class="card-content">
+                            <div class="name-time">
+                                <span class="user-name">${escapeHtml(groupName)}</span>
+                            </div>
+                            <span class="user-message" style="color: #4caf50;">Нажмите, чтобы вступить</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    if (!hasResults) {
+        searchResults.innerHTML = '<div style="padding: 15px; text-align: center; color: #888;">Ничего не найдено</div>';
+    }
 }
+
+// ========================
+// ДЕЙСТВИЯ С ЧАТАМИ И ПОИСКОМ
+// ========================
 
 export async function startChatWithUser(userId, username, avatarUrl) {
     try {

@@ -1,5 +1,6 @@
 package com.rgr.messanger.controller;
 
+import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.service.ChatService;
 import com.rgr.messanger.web.dto.chat.AddMemberRequest;
 import com.rgr.messanger.web.dto.chat.ChatDto;
@@ -73,10 +74,13 @@ public class ChatController {
             @Validated @RequestBody CreateGroupRequest request,
             @AuthenticationPrincipal JwtEntity user
     ) {
+        Boolean isPublic = request.getIsPublic() != null ? request.getIsPublic() : false;
+
         Long chatId = chatService.createGroupChat(
                 request.getName(),
                 user.getId(),
-                request.getMemberIds()
+                request.getMemberIds(),
+                isPublic
         );
         return ResponseEntity.ok(Map.of("chatId", chatId));
     }
@@ -150,6 +154,43 @@ public class ChatController {
             @AuthenticationPrincipal JwtEntity user
     ) {
         chatService.removeMember(chatId, userId, user.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    // ========================
+    // ПОИСК ПУБЛИЧНЫХ ГРУПП
+    // ========================
+
+    @GetMapping("/search")
+    public ResponseEntity<List<ChatResponse>> searchGroups(@RequestParam String query) {
+        List<ChatDto> foundChats = chatService.searchConversations(query);
+
+        List<ChatResponse> response = foundChats.stream()
+                .map(ChatResponse::from)
+                .toList();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{chatId}/privacy")
+    public ResponseEntity<Void> updateGroupPrivacy(
+            @PathVariable Long chatId,
+            @RequestBody Map<String, Boolean> body,
+            @AuthenticationPrincipal JwtEntity user
+    ) {
+        chatService.updateChatPrivacy(chatId, body.get("isPublic"), user.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    // ========================
+    // ВСТУПИТЬ В ПУБЛИЧНУЮ ГРУППУ
+    // ========================
+    @PostMapping("/{chatId}/join")
+    public ResponseEntity<Void> joinPublicGroup(
+            @PathVariable Long chatId,
+            @AuthenticationPrincipal JwtEntity user
+    ) {
+        chatService.joinPublicGroup(chatId, user.getId());
         return ResponseEntity.ok().build();
     }
 }

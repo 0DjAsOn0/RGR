@@ -4,6 +4,7 @@ import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.web.dto.chat.ChatDto;
 import com.rgr.messanger.web.dto.chat.ChatInfoResponse;
 import com.rgr.messanger.web.dto.chat.ChatMemberResponse;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -39,7 +40,8 @@ public interface ChatService {
 
     Long createNotesChat(Long userId);
 
-    Long createGroupChat(String name, Long creatorId, List<Long> memberIds);
+    @Transactional
+    Long createGroupChat(String name, Long creatorId, List<Long> memberIds, Boolean isPublic);
 
     // ========================
     // РЕДАКТИРОВАНИЕ
@@ -62,4 +64,10 @@ public interface ChatService {
     void addMember(Long chatId, Long userId, Long currentUserId);
 
     void removeMember(Long chatId, Long userId, Long currentUserId);
+
+    List<ChatDto> searchConversations(String query);
+
+    void updateChatPrivacy(Long chatId, Boolean isPublic, Long requesterId);
+
+    void joinPublicGroup(Long chatId, Long userId);
 }

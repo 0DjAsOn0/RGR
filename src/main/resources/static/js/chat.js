@@ -96,23 +96,25 @@ function buildMessage(msg) {
         return '';
     }
 
-    // Кнопки действий (редактировать, удалить)
-    const actionsHtml = text ? `
-        <div class="msg-actions">
-            <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="Редактировать">
-                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-            </button>
-            <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
-                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-            </button>
-        </div>
-    ` : `
-        <div class="msg-actions">
-            <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
-                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-            </button>
-        </div>
-    `;
+    let actionsHtml = '';
+    if (isOwn) {
+        actionsHtml = text ? `
+            <div class="msg-actions">
+                <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="Редактировать">
+                    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
+                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+            </div>
+        ` : `
+            <div class="msg-actions">
+                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
+                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+            </div>
+        `;
+    }
 
     return `
         <div class="message ${isOwn ? 'message-out' : 'message-in'}"
@@ -124,7 +126,6 @@ function buildMessage(msg) {
         ? `<span class="message-sender">${escapeHtml(msg.senderName)}</span>`
         : ''
     }
-
                 ${replyHtml}
                 ${attachmentsHtml}
                 ${textHtml}
@@ -155,7 +156,13 @@ export function renderMessages(messages) {
 
     if (!html) {
         container.classList.add('empty');
-        container.innerHTML = `<div class="no-messages">Начните переписку!</div>`;
+
+        // Делаем текст заглушки зависимым от типа чата (Заметки или обычный)
+        const dialogStatus = document.getElementById('dialogStatus');
+        const isNotes = dialogStatus && dialogStatus.textContent.toLowerCase().includes('заметки');
+        const emptyText = isNotes ? 'Здесь пока нет заметок' : 'Начните переписку!';
+
+        container.innerHTML = `<div class="no-messages">${emptyText}</div>`;
         return;
     }
 

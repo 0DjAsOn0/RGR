@@ -172,9 +172,11 @@ public class ChatRepoImpl implements ChatRepo {
         );
     }
 
+
     private static final String FIND_BY_ID = """
         SELECT id         AS chat_id,
                type       AS chat_type,
+               is_public  AS chat_is_public,
                name       AS chat_name,
                avatar_url AS chat_avatar_url,
                creator_id AS chat_creator_id,
@@ -194,9 +196,11 @@ public class ChatRepoImpl implements ChatRepo {
         return result.stream().findFirst();
     }
 
+
     private static final String FIND_PRIVATE_CHAT = """
         SELECT c.id         AS chat_id,
                c.type       AS chat_type,
+               c.is_public  AS chat_is_public,
                c.name       AS chat_name,
                c.avatar_url AS chat_avatar_url,
                c.creator_id AS chat_creator_id,
@@ -264,18 +268,19 @@ public class ChatRepoImpl implements ChatRepo {
     }
 
     private static final String CREATE_GROUP_CHAT = """
-        INSERT INTO chats (type, name, creator_id)
-        VALUES ('group', ?, ?)
+        INSERT INTO chats (type, name, creator_id, is_public)
+        VALUES ('group', ?, ?, ?)
         """;
 
     @Override
-    public Long createGroupChat(String name, Long creatorId) {
+    public Long createGroupChat(String name, Long creatorId, Boolean isPublic) {
         return insertAndGetId(connection -> {
             PreparedStatement stmt = connection.prepareStatement(
                     CREATE_GROUP_CHAT, new String[]{"id"}
             );
             stmt.setString(1, name);
             stmt.setLong(2, creatorId);
+            stmt.setBoolean(3, isPublic != null ? isPublic : false);
             return stmt;
         });
     }
@@ -380,6 +385,7 @@ public class ChatRepoImpl implements ChatRepo {
         chat.setName(rs.getString("chat_name"));
         chat.setAvatarUrl(rs.getString("chat_avatar_url"));
         chat.setCreatorId(rs.getObject("chat_creator_id", Long.class));
+        chat.setIsPublic(rs.getBoolean("chat_is_public"));
 
         Timestamp createdAt = rs.getTimestamp("chat_created_at");
         if (createdAt != null) {
@@ -446,5 +452,45 @@ public class ChatRepoImpl implements ChatRepo {
                 },
                 chatId
         );
+    }
+
+    // ========================
+    // ПОИСК ПУБЛИЧНЫХ ГРУПП ПО НАЗВАНИЮ
+    // ========================
+    private static final String SEARCH_PUBLIC_GROUPS = """
+        SELECT c.id, c.name, c.type, c.is_public
+        FROM chats c
+        WHERE c.type = 'group' 
+          AND c.is_public = TRUE 
+          AND c.name ILIKE ? 
+        ORDER BY c.name ASC
+        LIMIT 50
+        """;
+
+    @Override
+    public List<Chat> searchPublicGroups(String query) {
+        String searchPattern = "%" + query + "%";
+
+        return jdbcTemplate.query(
+                SEARCH_PUBLIC_GROUPS,
+                (rs, rowNum) -> {
+                    Chat chat = new Chat();
+                    chat.setId(rs.getLong("id"));
+                    chat.setName(rs.getString("name"));
+                    chat.setType(rs.getString("type"));
+                    chat.setIsPublic(rs.getBoolean("is_public"));
+                    return chat;
+                },
+                searchPattern
+        );
+    }
+
+    private static final String UPDATE_PRIVACY = """
+        UPDATE chats SET is_public = ? WHERE id = ?
+        """;
+
+    @Override
+    public void updateChatPrivacy(Long chatId, Boolean isPublic) {
+        jdbcTemplate.update(UPDATE_PRIVACY, isPublic != null ? isPublic : false, chatId);
     }
 }

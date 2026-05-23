@@ -2,6 +2,7 @@ package com.rgr.messanger.repository;
 
 import com.rgr.messanger.entity.chat.Chat;
 import com.rgr.messanger.web.dto.chat.ChatDto;
+import com.rgr.messanger.web.dto.chat.ChatMemberResponse; // Импортируем, чтобы не писать длинный путь
 
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +19,7 @@ public interface ChatRepo {
 
     Long createNotesChat(Long userId);
 
-    Long createGroupChat(String name, Long creatorId);
+    Long createGroupChat(String name, Long creatorId, Boolean isPublic);
 
     void updateChat(Long chatId, String name, String avatarUrl);
 
@@ -36,5 +37,9 @@ public interface ChatRepo {
 
     Optional<String> getMemberRole(Long chatId, Long userId);
 
-    List<com.rgr.messanger.web.dto.chat.ChatMemberResponse> getMembersDetailed(Long chatId);
+    List<ChatMemberResponse> getMembersDetailed(Long chatId);
+
+    List<Chat> searchPublicGroups(String query);
+
+    void updateChatPrivacy(Long chatId, Boolean isPublic);
 }

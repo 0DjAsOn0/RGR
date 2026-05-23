@@ -177,6 +177,13 @@ function renderGroupInfo() {
                    accept="image/*"
                    style="display:none;">
         </div>
+        
+        <div class="chat-info-edit-row" style="margin-top: 15px;">
+            <label style="display: flex; align-items: center; cursor: pointer; font-size: 14px; color: #ddd;">
+                <input type="checkbox" id="chatInfoPrivacyToggle" ${chat.isPublic ? 'checked' : ''} style="margin-right: 10px; width: 16px; height: 16px;">
+                Публичная группа (доступна в поиске)
+            </label>
+        </div>
     ` : '';
 
     const addMemberBlock = isCurrentUserCreator ? `
@@ -186,6 +193,14 @@ function renderGroupInfo() {
                    id="chatInfoAddUserSearch"
                    placeholder="Поиск пользователя для добавления">
             <ul class="chat-info-search-results" id="chatInfoAddSearchResults"></ul>
+        </div>
+    ` : '';
+
+    const leaveGroupBlock = !isCurrentUserCreator ? `
+        <div class="chat-info-edit-row" style="margin-top: 20px; justify-content: center;">
+            <button class="chat-info-btn" id="chatInfoLeaveBtn" type="button" style="background: #c62828; color: white; border: none; width: 100%;">
+                Покинуть группу
+            </button>
         </div>
     ` : '';
 
@@ -208,6 +223,7 @@ function renderGroupInfo() {
         </div>
 
         ${addMemberBlock}
+        ${leaveGroupBlock}
     `);
 
     bindGroupControls();
@@ -275,6 +291,18 @@ function bindGroupControls() {
 
     if (isCurrentUserCreator) {
         bindAddMemberSearch();
+
+        const privacyToggle = document.getElementById('chatInfoPrivacyToggle');
+        if (privacyToggle) {
+            privacyToggle.addEventListener('change', async (e) => {
+                await toggleGroupPrivacy(e.target.checked);
+            });
+        }
+    }
+
+    const leaveBtn = document.getElementById('chatInfoLeaveBtn');
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', leaveGroup);
     }
 }
 
@@ -340,6 +368,26 @@ async function uploadAvatar(file) {
     }
 }
 
+
+async function toggleGroupPrivacy(isPublic) {
+    if (!currentGroupChatId) return;
+
+    try {
+        await request(`/api/v1/chats/${currentGroupChatId}/privacy`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isPublic })
+        });
+        currentGroupChat.isPublic = isPublic;
+    } catch (error) {
+        console.error('Ошибка изменения приватности:', error);
+        alert('Не удалось изменить настройки приватности');
+        // Если ошибка — возвращаем галочку обратно
+        const toggle = document.getElementById('chatInfoPrivacyToggle');
+        if (toggle) toggle.checked = !isPublic;
+    }
+}
+
 async function removeMember(userId) {
     if (!currentGroupChatId || !userId) return;
     if (!confirm('Удалить пользователя из беседы?')) return;
@@ -375,6 +423,28 @@ async function addMember(userId) {
     } catch (error) {
         console.error('Ошибка добавления участника:', error);
         alert('Не удалось добавить участника');
+    }
+}
+
+async function leaveGroup() {
+    if (!currentGroupChatId || !state.currentUser?.id) return;
+    if (!confirm('Вы точно хотите покинуть эту группу?')) return;
+
+    try {
+        await request(`/api/v1/chats/${currentGroupChatId}/members/${state.currentUser.id}`, {
+            method: 'DELETE'
+        });
+
+        closeChatInfo();
+        // Принудительно закрываем чат на заднем фоне и обновляем список
+        document.getElementById('mainDialog').classList.add('empty-dialog');
+        document.getElementById('mainDialog').innerHTML = '<p class="main-dialog-inscription">Выберите, кому хотели бы написать</p>';
+        state.currentChatId = null;
+
+        await loadChats();
+    } catch (error) {
+        console.error('Ошибка выхода из группы:', error);
+        alert('Не удалось покинуть группу');
     }
 }
 

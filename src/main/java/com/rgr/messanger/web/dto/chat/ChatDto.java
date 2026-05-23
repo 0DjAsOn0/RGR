@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 public class ChatDto {
     private Long id;
     private String type;
+    private Boolean isPublic;
     private String name;
     private String avatarUrl;
     private String lastMessage;

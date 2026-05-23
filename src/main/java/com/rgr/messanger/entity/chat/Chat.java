@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class Chat {
     private Long id;
     private String type;
+    private Boolean isPublic;
     private String name;
     private String avatarUrl;
     private Long creatorId;

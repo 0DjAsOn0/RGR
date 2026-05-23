@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -126,12 +127,12 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
-    public Long createGroupChat(String name, Long creatorId, List<Long> memberIds) {
+    public Long createGroupChat(String name, Long creatorId, List<Long> memberIds, Boolean isPublic) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Название группы не может быть пустым");
         }
 
-        Long chatId = chatRepo.createGroupChat(name.trim(), creatorId);
+        Long chatId = chatRepo.createGroupChat(name.trim(), creatorId, isPublic);
 
         chatRepo.addMemberWithRole(chatId, creatorId, ROLE_OWNER);
 
@@ -208,9 +209,7 @@ public class ChatServiceImpl implements ChatService {
                 || "notes".equalsIgnoreCase(chat.getType());
 
         if (isNotesChat) {
-
             messageRepo.markDeletedByChatId(chatId);
-
             for (Long memberId : members) {
                 notifyChatListUpdate(memberId, chatId, "notes_cleared");
             }
@@ -345,6 +344,53 @@ public class ChatServiceImpl implements ChatService {
             throw new AccessDeniedException(
                     "Только создатель беседы может это делать"
             );
+        }
+    }
+
+    @Override
+    public List<ChatDto> searchConversations(String query) {
+        if (query == null || query.trim().length() < 2) {
+            return Collections.emptyList();
+        }
+
+        List<Chat> publicGroups = chatRepo.searchPublicGroups(query.trim());
+
+        return publicGroups.stream().map(chat -> {
+            ChatDto dto = new ChatDto();
+            dto.setId(chat.getId());
+            dto.setType(chat.getType());
+            dto.setIsPublic(chat.getIsPublic());
+            dto.setName(chat.getName());
+            dto.setAvatarUrl(chat.getAvatarUrl());
+            dto.setUnreadCount(0);
+            return dto;
+        }).toList();
+    }
+
+
+    @Override
+    @Transactional
+    public void updateChatPrivacy(Long chatId, Boolean isPublic, Long requesterId) {
+        requireOwner(chatId, requesterId, "изменять приватность группы");
+        chatRepo.updateChatPrivacy(chatId, isPublic);
+    }
+
+    @Override
+    @Transactional
+    public void joinPublicGroup(Long chatId, Long userId) {
+        Chat chat = chatRepo.findById(chatId)
+                .orElseThrow(() -> new ResourceNotFoundException("Чат не найден"));
+
+        // Проверяем, что группа действительно публичная
+        if (!Boolean.TRUE.equals(chat.getIsPublic())) {
+            throw new AccessDeniedException("Эта группа приватная, вступление только по приглашению");
+        }
+
+        // Если пользователя еще нет в группе - добавляем его
+        if (!chatRepo.isMember(chatId, userId)) {
+            chatRepo.addMemberWithRole(chatId, userId, "member"); // "member" из константы ROLE_MEMBER
+            notifyChatListUpdate(userId, chatId, "added");
+            notifyAllMembersChatUpdated(chatId);
         }
     }
 }
