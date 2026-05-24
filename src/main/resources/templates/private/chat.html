@@ -10,7 +10,7 @@
     <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
     <link rel="stylesheet" href="/styles/chat-info.css">
     <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
-    <title>Мессенджер</title>
+    <title data-i18n="app.title">Мессенджер</title>
 </head>
 <body>
 <div class="chat-container">
@@ -18,25 +18,24 @@
         <div class="nav-icons">
             <button class="profile-button" id="profileBtn" type="button">
                 <img class="avatar-img" th:src="@{avatars/default.png}" alt="аватар">
-                <span class="base-inscription">Профиль</span>
+                <span class="base-inscription" data-i18n="nav.profile">Профиль</span>
             </button>
 
             <button class="chat-button" id="folderBtn" type="button">
                 <img th:src="@{/icons/add-chat.svg}" alt="создать чат">
-                <span class="base-inscription">Создать чат</span>
+                <span class="base-inscription" data-i18n="nav.createChat">Создать чат</span>
             </button>
         </div>
 
-        <div class="settings-block">
-            <!--
-            <button class="settings-button" id="settingsBtn" type="button">
-                <img class="settings-icon"
-                     th:src="@{/icons/settings-icon.svg}"
-                     alt="настройки">
-            </button>
-            -->
+        <div class="settings-block" style="display: flex; align-items: center; gap: 15px;">
 
-            <button class="logout-button" id="logoutBtn" type="button">
+            <!-- ✅ ПЕРЕКЛЮЧАТЕЛЬ ЯЗЫКОВ -->
+            <select id="langSelect" style="background: transparent; color: #888; border: none; cursor: pointer; outline: none; font-size: 14px;">
+                <option value="ru">RU</option>
+                <option value="en">EN</option>
+            </select>
+
+            <button class="logout-button" id="logoutBtn" type="button" title="Выход">
                 <img class="logout-icon"
                      th:src="@{/icons/logout.svg}"
                      alt="выход">
@@ -48,6 +47,7 @@
         <div class="search-form">
             <input class="search-form-txt"
                    type="text"
+                   data-i18n="search.placeholder"
                    placeholder="Поиск"
                    id="searchInput"
                    autocomplete="off">
@@ -60,7 +60,7 @@
     <div class="resizer"></div>
 
     <div class="main-dialog empty-dialog" id="mainDialog" role="region" aria-live="polite">
-        <p class="main-dialog-inscription">
+        <p class="main-dialog-inscription" data-i18n="chat.emptyState">
             Выберите, кому хотели бы написать
         </p>
     </div>
@@ -70,7 +70,7 @@
 <div class="modal-overlay" id="createGroupModal" style="display:none;" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="createGroupTitle">
         <div class="modal-header">
-            <span id="createGroupTitle">Создать группу</span>
+            <span id="createGroupTitle" data-i18n="group.createTitle">Создать группу</span>
             <button class="modal-close" id="closeGroupModal" type="button">✕</button>
         </div>
 
@@ -78,11 +78,20 @@
             <input class="input"
                    type="text"
                    id="groupName"
+                   data-i18n="group.namePlaceholder"
                    placeholder="Название группы"/>
+
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="isPublicCheckbox" style="margin-right: 8px; width: 18px; height: 18px;">
+                    <span style="font-size: 14px; color: #aaa;" data-i18n="group.makePublic">Сделать группу публичной (доступна в поиске)</span>
+                </label>
+            </div>
 
             <input class="input"
                    type="text"
                    id="groupMemberSearch"
+                   data-i18n="group.addMembersPlaceholder"
                    placeholder="Добавить участников"/>
 
             <ul class="group-search-results" id="groupSearchResults"></ul>
@@ -90,7 +99,7 @@
         </div>
 
         <div class="modal-footer">
-            <button class="btn" id="createGroupBtn" type="button">Создать</button>
+            <button class="btn" id="createGroupBtn" type="button" data-i18n="group.createBtn">Создать</button>
         </div>
     </div>
 </div>

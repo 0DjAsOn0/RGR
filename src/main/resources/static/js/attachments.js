@@ -1,4 +1,5 @@
 import { escapeHtml } from './utils.js';
+import { t } from './i18n.js';
 
 const MAX_FILES = 10;
 const MAX_SIZE_MB = 50;
@@ -41,12 +42,12 @@ export function initAttachments() {
     function handleFiles(fileList) {
         Array.from(fileList).forEach(file => {
             if (selectedFiles.length >= MAX_FILES) {
-                alert(`Максимум ${MAX_FILES} файлов`);
+                alert(t('attach.maxFilesAlert')(MAX_FILES));
                 return;
             }
 
             if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-                alert(`Файл "${file.name}" слишком большой (макс. ${MAX_SIZE_MB}MB)`);
+                alert(t('attach.tooBigAlert')(file.name, MAX_SIZE_MB));
                 return;
             }
 
@@ -144,9 +145,15 @@ export async function uploadFiles(chatId, files, text, replyToId) {
         formData.append('replyToId', replyToId);
     }
 
+    // Подключаем текущий язык для отправки на сервер
+    const { currentLang } = await import('./i18n.js');
+
     const response = await fetch(`/api/v1/attachments/upload/${chatId}`, {
         method: 'POST',
         credentials: 'include',
+        headers: {
+            'Accept-Language': currentLang
+        },
         body: formData
     });
 
@@ -158,7 +165,7 @@ export async function uploadFiles(chatId, files, text, replyToId) {
     }
 
     if (!response.ok) {
-        throw new Error(data?.error || data?.message || 'Ошибка загрузки файлов');
+        throw new Error(data?.error || data?.message || t('attach.uploadError'));
     }
 
     return data;
@@ -172,7 +179,7 @@ export function renderAttachments(attachments) {
 
     return attachments.map(a => {
         const mime = a.mimeType || a.type || '';
-        const fileName = escapeHtml(a.fileName || a.name || 'файл');
+        const fileName = escapeHtml(a.fileName || a.name || t('attach.defaultFileName'));
         const rawUrl = a.fileUrl || a.url || '';
         const fileUrl = escapeHtml(rawUrl);
         const fileSize = a.fileSize || a.size || 0;
@@ -208,7 +215,7 @@ export function renderAttachments(attachments) {
                 <div class="msg-attachment">
                     <video class="msg-video" controls preload="metadata">
                         <source src="${fileUrl}" type="${escapeHtml(mime)}">
-                        Ваш браузер не поддерживает видео
+                        ${t('attach.noVideoSupport')}
                     </video>
                 </div>
             `;

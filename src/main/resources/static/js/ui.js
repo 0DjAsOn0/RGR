@@ -1,6 +1,7 @@
 import { escapeHtml } from './utils.js';
 import { fetchChats, searchUsers, searchPublicGroups, fetchOrCreateChat } from './api.js';
 import { openChat, state } from './app.js';
+import { t } from './i18n.js';
 
 const DEFAULT_AVATAR = '/avatars/default.png';
 
@@ -31,16 +32,16 @@ function getLastMessagePreview(chat) {
     switch (type) {
         case 'image':
         case 'images':
-            return '🖼 Фото';
+            return t('chat.previewPhoto');
         case 'video':
-            return '🎥 Видео';
+            return t('chat.previewVideo');
         case 'audio':
-            return '🎵 Аудио';
+            return t('chat.previewAudio');
         case 'file':
-            return '📎 Файл';
+            return t('chat.previewFile');
         default:
-            if (chat.hasAttachment) return '📎 Вложение';
-            return 'Нет сообщений';
+            if (chat.hasAttachment) return t('chat.previewAttachment');
+            return t('chat.noMessages');
     }
 }
 
@@ -56,7 +57,7 @@ export function renderChatList(chats) {
     if (!container) return;
 
     if (!chats || chats.length === 0) {
-        container.innerHTML = '<li class="no-chats">Нет чатов</li>';
+        container.innerHTML = `<li class="no-chats">${t('chat.noChats')}</li>`;
         return;
     }
 
@@ -66,10 +67,10 @@ export function renderChatList(chats) {
         const isGroup = chatType === 'group';
 
         const rawName = isNotes
-            ? 'Заметки'
+            ? t('chat.notes')
             : isGroup
-                ? (chat.name ?? 'Группа')
-                : (chat.interlocutorName ?? chat.name ?? 'Чат');
+                ? (chat.name ?? t('chat.group'))
+                : (chat.interlocutorName ?? chat.name ?? t('chat.defaultChat'));
 
         const escapedName = escapeHtml(rawName);
 
@@ -146,7 +147,7 @@ export async function handleSearch(query) {
 
         if (searchResults) {
             searchResults.style.display = 'block';
-            searchResults.innerHTML = '<div style="padding: 15px; text-align: center; color: #888;">Поиск...</div>';
+            searchResults.innerHTML = `<div style="padding: 15px; text-align: center; color: #888;">${t('search.searching')}</div>`;
         }
         if (chatsContainer) chatsContainer.style.display = 'none';
 
@@ -164,7 +165,7 @@ export async function handleSearch(query) {
             if (currentRequestId !== searchRequestId) return;
             console.error('Ошибка поиска:', error);
             if (searchResults) {
-                searchResults.innerHTML = '<div style="padding: 15px; text-align: center; color: #c62828;">Ошибка при поиске</div>';
+                searchResults.innerHTML = `<div style="padding: 15px; text-align: center; color: #c62828;">${t('search.error')}</div>`;
             }
         }
     }, 300);
@@ -182,11 +183,11 @@ function renderCombinedSearchResults(users, groups) {
 
     if (filteredUsers.length > 0) {
         hasResults = true;
-        searchResults.innerHTML += `<div style="padding: 8px 15px; font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase;">Пользователи</div>`;
+        searchResults.innerHTML += `<div style="padding: 8px 15px; font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase;">${t('search.users')}</div>`;
 
         filteredUsers.forEach(u => {
             const avatarUrl = u.avatarUrl ?? DEFAULT_AVATAR;
-            const statusLabel = u.status === 'online' ? 'в сети' : 'Нажмите, чтобы написать';
+            const statusLabel = u.status === 'online' ? t('status.online') : t('search.clickToWrite');
             const statusClass = u.status === 'online' ? 'online' : '';
 
             searchResults.innerHTML += `
@@ -199,7 +200,7 @@ function renderCombinedSearchResults(users, groups) {
                             <div class="name-time">
                                 <span class="user-name">${escapeHtml(u.username)}</span>
                                 <span class="user-status-badge ${statusClass}">
-                                    ${u.status === 'online' ? 'в сети' : ''}
+                                    ${u.status === 'online' ? t('status.online') : ''}
                                 </span>
                             </div>
                             <span class="user-message">${statusLabel}</span>
@@ -213,13 +214,12 @@ function renderCombinedSearchResults(users, groups) {
     // 2. Отрисовка публичных групп
     if (groups && groups.length > 0) {
         hasResults = true;
-        searchResults.innerHTML += `<div style="padding: 8px 15px; font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; margin-top: 10px;">Публичные группы</div>`;
+        searchResults.innerHTML += `<div style="padding: 8px 15px; font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; margin-top: 10px;">${t('search.publicGroups')}</div>`;
 
         groups.forEach(g => {
             const avatarUrl = g.avatarUrl ?? DEFAULT_AVATAR;
-            const groupName = g.name ?? 'Группа';
+            const groupName = g.name ?? t('chat.group');
 
-            // ✅ ЗДЕСЬ ДОБАВЛЕН КЛАСС search-public-group
             searchResults.innerHTML += `
                 <div class="card search-public-group" data-chat-id="${g.id}" data-chat-type="group" data-user-name="${escapeHtml(groupName)}" data-user-avatar="${escapeHtml(avatarUrl)}">
                     <div class="chat-card">
@@ -230,7 +230,7 @@ function renderCombinedSearchResults(users, groups) {
                             <div class="name-time">
                                 <span class="user-name">${escapeHtml(groupName)}</span>
                             </div>
-                            <span class="user-message" style="color: #4caf50;">Нажмите, чтобы вступить</span>
+                            <span class="user-message" style="color: #4caf50;">${t('search.clickToJoin')}</span>
                         </div>
                     </div>
                 </div>
@@ -239,7 +239,7 @@ function renderCombinedSearchResults(users, groups) {
     }
 
     if (!hasResults) {
-        searchResults.innerHTML = '<div style="padding: 15px; text-align: center; color: #888;">Ничего не найдено</div>';
+        searchResults.innerHTML = `<div style="padding: 15px; text-align: center; color: #888;">${t('search.notFound')}</div>`;
     }
 }
 
@@ -266,7 +266,7 @@ export async function startChatWithUser(userId, username, avatarUrl) {
         tempCard.className = 'card';
         tempCard.dataset.chatId = chatId;
         tempCard.dataset.userId = userId;
-        tempCard.dataset.userName = username ?? 'Чат';
+        tempCard.dataset.userName = username ?? t('chat.defaultChat');
         tempCard.dataset.userAvatar = avatarUrl ?? DEFAULT_AVATAR;
         tempCard.dataset.chatType =
             Number(userId) === Number(state.currentUser?.id) ? 'notes' : 'private';

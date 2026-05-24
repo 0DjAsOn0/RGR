@@ -115,7 +115,6 @@ function renderUserProfile(user) {
             </div>
             <div class="chat-info-row">
                 <span class="chat-info-label">ID</span>
-                <span class="chat-info-value">${user.id}</span>
             </div>
         </div>
     `);

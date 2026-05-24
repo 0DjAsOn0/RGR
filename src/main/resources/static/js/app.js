@@ -8,6 +8,7 @@ import { viewMyProfile, closeCreateWindow, toggleEmailNotifications } from './pr
 import { loadCurrentUser, stopHeartbeat, logout } from './user.js';
 import { initAttachments, uploadFiles, initLightbox } from './attachments.js';
 import { initChatInfo, openUserProfile, openGroupInfo } from './chat-info.js';
+import { t, translateDOM, setLanguage, currentLang } from './i18n.js'; // ✅ Добавлено t
 
 const DEFAULT_AVATAR = '/avatars/default.png';
 
@@ -31,6 +32,16 @@ const PROCESSED_LIMIT = 500;
 // ========================
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Переводим статический HTML при загрузке
+    translateDOM();
+
+    // Настраиваем переключатель языка, если он есть на странице
+    const langSelect = document.getElementById('langSelect');
+    if (langSelect) {
+        langSelect.value = currentLang;
+        langSelect.addEventListener('change', (e) => setLanguage(e.target.value));
+    }
+
     await loadCurrentUser();
 
     if (!state.currentUser) {
@@ -112,9 +123,9 @@ function initEventListeners() {
         const deleteBtn = e.target.closest('.delete-btn');
         if (deleteBtn && !e.target.closest('.chat-info-remove-btn')) {
             const msgId = deleteBtn.dataset.id;
-            if (confirm("Точно удалить сообщение?")) {
+            if (confirm(t('chat.confirmDeleteMessage'))) {
                 fetch(`/api/v1/messages/${msgId}`, { method: 'DELETE', credentials: 'include' })
-                    .catch(err => alert("Нет прав для удаления"));
+                    .catch(err => alert(t('chat.errorDeleteMessage')));
             }
             return;
         }
@@ -135,7 +146,7 @@ function initEventListeners() {
             const replyText = document.getElementById('replyPreviewText');
             if (replyPreview && replyText) {
                 const label = document.querySelector('.reply-preview-label');
-                if (label) label.textContent = 'Редактирование:';
+                if (label) label.textContent = t('chat.editing');
                 replyText.textContent = text.length > 50 ? text.slice(0, 50) + '...' : text;
                 replyPreview.style.display = 'flex';
             }
@@ -148,7 +159,7 @@ function initEventListeners() {
             clearReply();
             state.editMessageId = null;
             const label = document.querySelector('.reply-preview-label');
-            if (label) label.textContent = 'Ответ на:';
+            if (label) label.textContent = t('chat.replyTo');
             const messageInput = document.getElementById('messageInput');
             if (messageInput) messageInput.value = '';
             return;
@@ -164,16 +175,16 @@ function initEventListeners() {
             return;
         }
 
-        // ✅ КЛИК ПО ПУБЛИЧНОЙ ГРУППЕ В ПОИСКЕ (ВСТУПЛЕНИЕ)
+        // КЛИК ПО ПУБЛИЧНОЙ ГРУППЕ В ПОИСКЕ (ВСТУПЛЕНИЕ)
         const publicGroupCard = e.target.closest('.search-public-group');
         if (publicGroupCard) {
             const chatId = publicGroupCard.dataset.chatId;
             const groupName = publicGroupCard.dataset.userName;
 
-            if (confirm(`Вы хотите вступить в группу "${groupName}"?`)) {
+            if (confirm(`${t('group.confirmJoin')} "${groupName}"?`)) {
                 joinPublicGroup(chatId, publicGroupCard);
             }
-            return; // Прерываем обработку, чтобы не открылся пустой чат
+            return;
         }
 
         // Клик по шапке чата (для открытия инфы)
@@ -267,14 +278,12 @@ function initEventListeners() {
 async function deleteCurrentChat() {
     if (!state.currentChatId) return;
 
-    // Проверяем, заметки ли это
     const card = document.querySelector(`.card[data-chat-id="${state.currentChatId}"]`);
     const isNotes = card?.dataset.chatType === 'notes';
 
-    // Формируем правильный текст
     const confirmMsg = isNotes
-        ? "Вы уверены, что хотите очистить все заметки? Восстановить их будет невозможно."
-        : "Вы уверены, что хотите удалить этот чат? Это действие необратимо.";
+        ? t('chat.confirmClearNotes')
+        : t('chat.confirmDeleteChat');
 
     if (!confirm(confirmMsg)) {
         return;
@@ -291,14 +300,12 @@ async function deleteCurrentChat() {
         }
 
         if (isNotes) {
-            // Если это заметки, просто очищаем окно (чат не закрывается)
             const container = document.getElementById('messagesContainer');
             if (container) {
-                container.innerHTML = '<div class="no-messages">Заметки очищены</div>';
+                container.innerHTML = `<div class="no-messages">${t('chat.notesCleared')}</div>`;
                 container.classList.add('empty');
             }
         } else {
-            // Если обычный чат — закрываем
             closeChatView();
         }
 
@@ -306,11 +313,11 @@ async function deleteCurrentChat() {
 
     } catch (error) {
         console.error('Ошибка удаления чата:', error);
-        alert("Нет прав для удаления этого чата или произошла ошибка.");
+        alert(t('chat.errorDeleteChat'));
     }
 }
 
-// ✅ ФУНКЦИЯ ВСТУПЛЕНИЯ В ПУБЛИЧНУЮ ГРУППУ
+// ФУНКЦИЯ ВСТУПЛЕНИЯ В ПУБЛИЧНУЮ ГРУППУ
 async function joinPublicGroup(chatId, cardElement) {
     try {
         const response = await fetch(`/api/v1/chats/${chatId}/join`, {
@@ -322,21 +329,15 @@ async function joinPublicGroup(chatId, cardElement) {
             throw new Error('Не удалось вступить в группу');
         }
 
-        // Очищаем поиск
         clearSearch(false);
-
-        // Обновляем список чатов
         await refreshChatsNow();
-
-        // Открываем чат
         openChat(cardElement);
 
     } catch (error) {
         console.error(error);
-        alert("Произошла ошибка при попытке вступить в группу.");
+        alert(t('group.errorJoin'));
     }
 }
-
 
 // ========================
 // ИНФО О ТЕКУЩЕМ ЧАТЕ
@@ -415,7 +416,7 @@ function closeChatView() {
     const dialog = document.getElementById('mainDialog');
     if (dialog) {
         dialog.classList.add('empty-dialog');
-        dialog.innerHTML = '<p class="main-dialog-inscription">Выберите, кому хотели бы написать</p>';
+        dialog.innerHTML = `<p class="main-dialog-inscription">${t('chat.emptyState')}</p>`;
     }
 }
 
@@ -429,26 +430,26 @@ function getPreviewText(msg) {
 
     const type = String(msg?.type || '').toLowerCase();
 
-    if (type === 'image' || type === 'images') return '🖼 Фото';
-    if (type === 'video') return '🎥 Видео';
-    if (type === 'audio') return '🎵 Аудио';
+    if (type === 'image' || type === 'images') return t('chat.previewPhoto');
+    if (type === 'video') return t('chat.previewVideo');
+    if (type === 'audio') return t('chat.previewAudio');
     if (type === 'file') {
         const fileName = msg?.attachments?.[0]?.fileName;
-        return fileName ? `📎 ${fileName}` : '📎 Файл';
+        return fileName ? `📎 ${fileName}` : t('chat.previewFile');
     }
 
     if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
         const attachment = msg.attachments[0];
         const mime = String(attachment?.mimeType || '').toLowerCase();
 
-        if (mime.startsWith('image/')) return '🖼 Фото';
-        if (mime.startsWith('video/')) return '🎥 Видео';
-        if (mime.startsWith('audio/')) return '🎵 Аудио';
+        if (mime.startsWith('image/')) return t('chat.previewPhoto');
+        if (mime.startsWith('video/')) return t('chat.previewVideo');
+        if (mime.startsWith('audio/')) return t('chat.previewAudio');
 
-        return attachment?.fileName ? `📎 ${attachment.fileName}` : '📎 Файл';
+        return attachment?.fileName ? `📎 ${attachment.fileName}` : t('chat.previewFile');
     }
 
-    return 'Нет сообщений';
+    return t('chat.noMessages');
 }
 
 function moveChatCard(card) {
@@ -535,11 +536,10 @@ function onMessageReceived(frame) {
                 closeChatView();
             }
         } else if (msg.action === 'notes_cleared') {
-            // Если заметки были очищены, просто обнуляем сообщения, не закрывая чат
             if (String(state.currentChatId) === chatId) {
                 const container = document.getElementById('messagesContainer');
                 if (container) {
-                    container.innerHTML = '<div class="no-messages">Заметки очищены</div>';
+                    container.innerHTML = `<div class="no-messages">${t('chat.notesCleared')}</div>`;
                     container.classList.add('empty');
                 }
             }
@@ -566,7 +566,7 @@ function onMessageReceived(frame) {
 
             const metaDiv = msgEl.querySelector('.message-meta');
             if (metaDiv && !metaDiv.querySelector('.msg-edited-mark')) {
-                metaDiv.insertAdjacentHTML('afterbegin', '<span class="msg-edited-mark">(изм.)</span>');
+                metaDiv.insertAdjacentHTML('afterbegin', `<span class="msg-edited-mark">(${t('chat.editedShort')})</span>`);
             }
         }
         return;
@@ -590,8 +590,6 @@ function onMessageReceived(frame) {
     }
 
     msg.own = Number(msg.senderId) === Number(state.currentUser?.id);
-
-    console.log('WS message:', msg);
 
     const isCurrentChat = String(msg.chatId) === String(state.currentChatId);
 
@@ -623,7 +621,7 @@ export async function openChat(card) {
     }
 
     const userId = card.dataset.userId;
-    const userName = card.dataset.userName ?? 'Собеседник';
+    const userName = card.dataset.userName ?? t('chat.defaultInterlocutor');
     const userAvatar = card.dataset.userAvatar ?? '';
     const chatType = card.dataset.chatType ?? 'private';
     let chatId = card.dataset.chatId;
@@ -672,10 +670,10 @@ export async function openChat(card) {
                 ${avatarBlock}
                 <div class="dialog-header-text">
                     <span class="dialog-name">
-                        ${isNotes ? 'Заметки' : escapeHtml(userName)}
+                        ${isNotes ? t('chat.notes') : escapeHtml(userName)}
                     </span>
                     <span class="dialog-status" id="dialogStatus">
-                        ${isNotes ? 'Личные заметки' : isGroup ? 'Группа' : 'Загрузка...'}
+                        ${isNotes ? t('chat.personalNotes') : isGroup ? t('chat.group') : t('app.loading')}
                     </span>
                 </div>
             </div>
@@ -683,19 +681,19 @@ export async function openChat(card) {
                 <button class="icon-btn" id="chatOptionsBtn" type="button">⋮</button>
                 <div class="chat-options-menu" id="chatOptionsMenu" style="display: none;">
                     <button class="chat-option-btn danger" id="deleteChatBtn" type="button">
-                        ${isNotes ? 'Очистить заметки' : 'Удалить чат'}
+                        ${isNotes ? t('chat.clearNotes') : t('chat.deleteChat')}
                     </button>
                 </div>
             </div>
         </div>
 
         <div class="dialog-messages" id="messagesContainer">
-            <div class="messages-loading">Загрузка...</div>
+            <div class="messages-loading">${t('app.loading')}</div>
         </div>
 
         <div class="reply-preview" id="replyPreview" style="display:none;">
             <div class="reply-preview-content">
-                <span class="reply-preview-label">Ответ на:</span>
+                <span class="reply-preview-label">${t('chat.replyTo')}</span>
                 <span class="reply-preview-text" id="replyPreviewText"></span>
             </div>
             <button class="cancel-reply-btn" type="button">✕</button>
@@ -704,15 +702,15 @@ export async function openChat(card) {
         <div class="attachments-preview" id="attachmentsPreview" style="display:none;"></div>
 
         <div class="dialog-input-area">
-            <button class="attach-btn" id="attachBtn" type="button" title="Прикрепить файл">
-                <img src="/icons/attachment.svg" alt="вложение">
+            <button class="attach-btn" id="attachBtn" type="button" title="${t('chat.attachFile')}">
+                <img src="/icons/attachment.svg" alt="${t('chat.attachment')}">
             </button>
             <input type="file" id="fileInput" multiple hidden>
 
             <textarea
                 class="message-input"
                 id="messageInput"
-                placeholder="${isNotes ? 'Написать заметку...' : 'Написать сообщение...'}"
+                placeholder="${isNotes ? t('chat.writeNote') : t('chat.writeMessage')}"
                 rows="1"></textarea>
 
             <button class="icon-btn send-btn" type="button">➤</button>
@@ -752,7 +750,7 @@ async function loadUserStatus(userId) {
         const statusEl = document.getElementById('dialogStatus');
 
         if (statusEl) {
-            statusEl.textContent = user.lastSeen ?? 'не в сети';
+            statusEl.textContent = user.lastSeen ?? t('status.offline');
             statusEl.style.color = user.status === 'online' ? '#4caf50' : '';
         }
     } catch (error) {
@@ -769,7 +767,7 @@ export function setReply(messageId, messageText) {
     state.editMessageId = null;
 
     const label = document.querySelector('.reply-preview-label');
-    if (label) label.textContent = 'Ответ на:';
+    if (label) label.textContent = t('chat.replyTo');
 
     const replyPreview = document.getElementById('replyPreview');
     const replyText = document.getElementById('replyPreviewText');
@@ -777,7 +775,7 @@ export function setReply(messageId, messageText) {
     if (replyPreview && replyText) {
         const safeText = (messageText && messageText.trim())
             ? messageText
-            : 'Сообщение без текста';
+            : t('chat.messageWithoutText');
 
         replyText.textContent =
             safeText.slice(0, 80) + (safeText.length > 80 ? '...' : '');
@@ -826,11 +824,11 @@ async function sendMessage() {
             clearReply();
             state.editMessageId = null;
             const label = document.querySelector('.reply-preview-label');
-            if (label) label.textContent = 'Ответ на:';
+            if (label) label.textContent = t('chat.replyTo');
 
         } catch (error) {
             console.error('Ошибка редактирования сообщения:', error);
-            alert("Ошибка при редактировании сообщения");
+            alert(t('chat.errorEditMessage'));
         }
         return;
     }
@@ -889,7 +887,7 @@ async function sendMessageWithFiles(text, input) {
 
     } catch (error) {
         console.error('Ошибка загрузки файлов:', error);
-        alert('Ошибка загрузки: ' + (error.message ?? 'Неизвестная ошибка'));
+        alert(t('chat.errorUpload') + (error.message ?? ''));
     } finally {
         const sendBtn = document.querySelector('.send-btn');
         if (sendBtn) {
@@ -912,7 +910,7 @@ async function sendMessageHttp(content, input) {
         });
 
         if (!response.ok) {
-            let message = 'Ошибка отправки';
+            let message = t('chat.errorSend');
 
             try {
                 const data = await response.json();
@@ -932,7 +930,7 @@ async function sendMessageHttp(content, input) {
 
     } catch (error) {
         console.error('Ошибка HTTP отправки:', error);
-        alert(error.message ?? 'Ошибка отправки');
+        alert(error.message ?? t('chat.errorSend'));
     }
 }
 

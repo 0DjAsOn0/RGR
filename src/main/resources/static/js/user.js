@@ -1,6 +1,7 @@
 import { fetchCurrentUser, sendHeartbeat, setOffline } from './api.js';
 import { state } from './app.js';
 import { disconnect } from './websocket.js';
+import { t } from './i18n.js';
 
 let heartbeatInterval = null;
 const HEARTBEAT_INTERVAL_MS = 10000;
@@ -26,7 +27,7 @@ export async function loadCurrentUser() {
 export function updateNavbar(user) {
     const profileLabel = document.querySelector('.profile-button .base-inscription');
     if (profileLabel) {
-        profileLabel.textContent = user.username ?? 'Профиль';
+        profileLabel.textContent = user.username ?? t('nav.profile');
     }
 
     const navAvatar = document.querySelector('.profile-button .avatar-img');

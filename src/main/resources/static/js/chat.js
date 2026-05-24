@@ -3,6 +3,7 @@ import { escapeHtml, formatStatus } from './utils.js';
 import { sendReadReceipt } from './websocket.js';
 import { state } from './app.js';
 import { renderAttachments } from './attachments.js';
+import { t } from './i18n.js';
 
 let readObserver = null;
 
@@ -21,7 +22,7 @@ export async function loadMessages(chatId) {
     } catch (error) {
         console.error('Ошибка загрузки сообщений:', error);
         container.classList.add('empty');
-        container.innerHTML = `<div class="no-messages">Ошибка загрузки сообщений</div>`;
+        container.innerHTML = `<div class="no-messages">${t('chat.errorLoadMessages')}</div>`;
     }
 }
 
@@ -38,15 +39,15 @@ function getAttachmentFallback(type) {
     switch (type) {
         case 'image':
         case 'images':
-            return '🖼 Изображение';
+            return t('chat.previewPhoto');
         case 'video':
-            return '🎥 Видео';
+            return t('chat.previewVideo');
         case 'audio':
-            return '🎵 Аудио';
+            return t('chat.previewAudio');
         case 'file':
-            return '📎 Файл';
+            return t('chat.previewFile');
         default:
-            return '📎 Вложение';
+            return t('chat.previewAttachment');
     }
 }
 
@@ -76,13 +77,13 @@ function buildMessage(msg) {
     const replyHtml = msg.replyToId
         ? `
             <div class="reply-snippet">
-                <span class="reply-label">Ответ на сообщение</span>
+                <span class="reply-label">${t('chat.replyToMessage')}</span>
             </div>
         `
         : '';
 
     const editedHtml = msg.isEdited
-        ? `<span class="msg-edited-mark">(изм.)</span>`
+        ? `<span class="msg-edited-mark">(${t('chat.editedShort')})</span>`
         : '';
 
     const hasVisibleContent = Boolean(
@@ -98,18 +99,19 @@ function buildMessage(msg) {
 
     let actionsHtml = '';
     if (isOwn) {
+        // Добавлены title из словаря
         actionsHtml = text ? `
             <div class="msg-actions">
-                <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="Редактировать">
+                <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="${t('app.edit')}">
                     <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
                 </button>
-                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
+                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="${t('app.delete')}">
                     <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                 </button>
             </div>
         ` : `
             <div class="msg-actions">
-                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="Удалить">
+                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="${t('app.delete')}">
                     <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                 </button>
             </div>
@@ -157,10 +159,10 @@ export function renderMessages(messages) {
     if (!html) {
         container.classList.add('empty');
 
-        // Делаем текст заглушки зависимым от типа чата (Заметки или обычный)
+        // Для проверки, "Заметки" ли это, используем мультиязычный ключ t('chat.notes')
         const dialogStatus = document.getElementById('dialogStatus');
-        const isNotes = dialogStatus && dialogStatus.textContent.toLowerCase().includes('заметки');
-        const emptyText = isNotes ? 'Здесь пока нет заметок' : 'Начните переписку!';
+        const isNotes = dialogStatus && dialogStatus.textContent.toLowerCase().includes(t('chat.notes').toLowerCase());
+        const emptyText = isNotes ? t('chat.noNotesYet') : t('chat.start');
 
         container.innerHTML = `<div class="no-messages">${emptyText}</div>`;
         return;

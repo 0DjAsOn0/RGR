@@ -9,9 +9,16 @@
     <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
     <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
     <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
-    <title>Регистрация</title>
+    <title data-i18n="title">Регистрация</title>
 </head>
 <body>
+<div style="position: absolute; top: 15px; right: 20px;">
+    <select id="langSelect" style="background: transparent; color: #888; border: none; cursor: pointer; outline: none; font-size: 14px;">
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+    </select>
+</div>
+
 <div class="login-box">
     <div class="logo">sicelica</div>
 
@@ -19,6 +26,7 @@
         <input id="username"
                class="input"
                type="text"
+               data-i18n="username.placeholder"
                placeholder="имя пользователя"
                autocomplete="username"
                required/>
@@ -26,6 +34,7 @@
         <input id="password"
                class="input"
                type="password"
+               data-i18n="password.placeholder"
                placeholder="пароль"
                autocomplete="new-password"
                required/>
@@ -33,6 +42,7 @@
         <input id="passwordConfirmation"
                class="input"
                type="password"
+               data-i18n="passConfirm.placeholder"
                placeholder="повторите пароль"
                autocomplete="new-password"
                required/>
@@ -40,21 +50,101 @@
         <input id="email"
                class="input"
                type="text"
+               data-i18n="email.placeholder"
                placeholder="введите почту"
                autocomplete="email"
                required/>
 
-        <button class="btn" id="registerBtn" type="submit">
+        <button class="btn" id="registerBtn" type="submit" data-i18n="btn.register">
             Зарегистрироваться
         </button>
 
         <div class="bottom-links">
-            <a th:href="@{/login}">Войти</a>
+            <a th:href="@{/login}" data-i18n="link.login">Войти</a>
         </div>
     </form>
 </div>
 
 <script>
+    // ========================
+    // ЛОКАЛИЗАЦИЯ (i18n)
+    // ========================
+    const translations = {
+        ru: {
+            "title": "Регистрация",
+            "username.placeholder": "имя пользователя",
+            "password.placeholder": "пароль",
+            "passConfirm.placeholder": "повторите пароль",
+            "email.placeholder": "введите почту",
+            "btn.register": "Зарегистрироваться",
+            "link.login": "Войти",
+
+            // Тексты для JS
+            "js.errFillFields": "Пожалуйста, заполните все поля",
+            "js.errPassMatch": "Пароли не совпадают",
+            "js.errValidEmail": "Введите корректный email",
+            "js.btnSending": "Отправляем...",
+            "js.errRegister": "Ошибка регистрации",
+            "js.errServer": "Ошибка сервера. Попробуйте позже."
+        },
+        en: {
+            "title": "Registration",
+            "username.placeholder": "username",
+            "password.placeholder": "password",
+            "passConfirm.placeholder": "confirm password",
+            "email.placeholder": "enter email",
+            "btn.register": "Register",
+            "link.login": "Login",
+
+            // JS Texts
+            "js.errFillFields": "Please fill in all fields",
+            "js.errPassMatch": "Passwords do not match",
+            "js.errValidEmail": "Enter a valid email",
+            "js.btnSending": "Sending...",
+            "js.errRegister": "Registration error",
+            "js.errServer": "Server error. Please try again later."
+        }
+    };
+
+    let currentLang = localStorage.getItem('app_lang') || 'ru';
+    let t = translations[currentLang];
+
+    function applyTranslations() {
+        t = translations[currentLang];
+        document.documentElement.lang = currentLang;
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (!t[key]) return;
+
+            if (el.tagName === 'INPUT') {
+                el.placeholder = t[key];
+            } else if (el.tagName === 'TITLE') {
+                document.title = t[key];
+            } else {
+                el.textContent = t[key];
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        applyTranslations();
+
+        const langSelect = document.getElementById('langSelect');
+        if (langSelect) {
+            langSelect.value = currentLang;
+            langSelect.addEventListener('change', (e) => {
+                currentLang = e.target.value;
+                localStorage.setItem('app_lang', currentLang);
+                applyTranslations();
+                clearError(); // Скрываем ошибки при смене языка
+            });
+        }
+    });
+
+    // ========================
+    // ОСНОВНАЯ ЛОГИКА
+    // ========================
     document.getElementById('registrationForm')
         .addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -66,27 +156,30 @@
             const email = document.getElementById('email').value.trim();
 
             if (!username || !password || !passwordConfirmation || !email) {
-                showError('Пожалуйста, заполните все поля');
+                showError(t["js.errFillFields"]);
                 return;
             }
 
             if (password !== passwordConfirmation) {
-                showError('Пароли не совпадают');
+                showError(t["js.errPassMatch"]);
                 return;
             }
 
             if (!isValidEmail(email)) {
-                showError('Введите корректный email');
+                showError(t["js.errValidEmail"]);
                 return;
             }
 
             const btn = document.getElementById('registerBtn');
-            setButtonState(btn, true, 'Отправляем...');
+            setButtonState(btn, true, t["js.btnSending"]);
 
             try {
                 const response = await fetch('/api/v1/auth/register', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept-Language': currentLang
+                    },
                     body: JSON.stringify({
                         username,
                         password,
@@ -98,7 +191,7 @@
                 const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(collectErrorMessage(data) || 'Ошибка регистрации');
+                    showError(collectErrorMessage(data) || t["js.errRegister"]);
                     return;
                 }
 
@@ -106,9 +199,9 @@
 
             } catch (error) {
                 console.error('Ошибка:', error);
-                showError('Ошибка сервера. Попробуйте позже.');
+                showError(t["js.errServer"]);
             } finally {
-                setButtonState(btn, false, 'Зарегистрироваться');
+                setButtonState(btn, false, t["btn.register"]);
             }
         });
 

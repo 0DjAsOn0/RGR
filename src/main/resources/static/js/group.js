@@ -2,6 +2,7 @@ import { state } from './app.js';
 import { searchUsers } from './api.js';
 import { escapeHtml, collectErrorMessage } from './utils.js';
 import { loadChats } from './ui.js';
+import { t } from './i18n.js'; // ✅ Добавлен импорт перевода
 
 const DEFAULT_AVATAR = 'avatars/default.png';
 
@@ -75,12 +76,12 @@ function resetModal() {
     const groupName = document.getElementById('groupName');
     const memberSearch = document.getElementById('groupMemberSearch');
     const results = document.getElementById('groupSearchResults');
-    const isPublicCheckbox = document.getElementById('isPublicCheckbox'); // ✅ Сброс чекбокса
+    const isPublicCheckbox = document.getElementById('isPublicCheckbox');
 
     if (groupName) groupName.value = '';
     if (memberSearch) memberSearch.value = '';
     if (results) results.innerHTML = '';
-    if (isPublicCheckbox) isPublicCheckbox.checked = false; // ✅ Сброс чекбокса
+    if (isPublicCheckbox) isPublicCheckbox.checked = false;
 }
 
 // ========================
@@ -94,7 +95,7 @@ async function handleMemberSearch(query) {
     if (!results) return;
 
     try {
-        results.innerHTML = '<li style="padding:8px;color:#888">Поиск...</li>';
+        results.innerHTML = `<li style="padding:8px;color:#888">${t('search.searching')}</li>`;
 
         const users = await searchUsers(query);
 
@@ -110,7 +111,7 @@ async function handleMemberSearch(query) {
         }
 
         console.error('Ошибка поиска участников:', error);
-        results.innerHTML = '<li style="padding:8px;color:#c62828">Ошибка поиска</li>';
+        results.innerHTML = `<li style="padding:8px;color:#c62828">${t('search.error')}</li>`;
     }
 }
 
@@ -121,12 +122,12 @@ function renderGroupSearchResults(users) {
     const filteredUsers = (users ?? []).filter(u => u.id !== state.currentUser?.id);
 
     if (filteredUsers.length === 0) {
-        list.innerHTML = '<li style="padding:8px;color:#888">Не найдено</li>';
+        list.innerHTML = `<li style="padding:8px;color:#888">${t('search.notFound')}</li>`;
         return;
     }
 
     list.innerHTML = filteredUsers.map(u => {
-        const username = u.username ?? 'Пользователь';
+        const username = u.username ?? t('group.defaultUser');
         const avatarUrl = u.avatarUrl ?? DEFAULT_AVATAR;
 
         return `
@@ -149,7 +150,7 @@ function renderGroupSearchResults(users) {
 
             selectedUsers.set(id, {
                 id,
-                username: user.username ?? 'Пользователь'
+                username: user.username ?? t('group.defaultUser')
             });
 
             renderChips();
@@ -195,19 +196,18 @@ async function createGroup() {
     const groupNameInput = document.getElementById('groupName');
     const modal = document.getElementById('createGroupModal');
     const createBtn = document.getElementById('createGroupBtn');
-    const isPublicCheckbox = document.getElementById('isPublicCheckbox'); // ✅ Читаем чекбокс
+    const isPublicCheckbox = document.getElementById('isPublicCheckbox');
 
     const name = groupNameInput?.value.trim() ?? '';
-    const isPublic = isPublicCheckbox ? isPublicCheckbox.checked : false; // ✅ Статус публичности
+    const isPublic = isPublicCheckbox ? isPublicCheckbox.checked : false;
 
     if (!name) {
-        alert('Введите название группы');
+        alert(t('group.enterNameAlert'));
         return;
     }
 
-    // Если группа приватная — заставляем добавить хоть кого-то. Если публичная — можно создать пустую!
     if (selectedUsers.size === 0 && !isPublic) {
-        alert('Добавьте хотя бы одного участника для приватной группы');
+        alert(t('group.addMembersAlert'));
         return;
     }
 
@@ -223,12 +223,12 @@ async function createGroup() {
             body: JSON.stringify({
                 name,
                 memberIds: [...selectedUsers.keys()],
-                isPublic: isPublic // ✅ Отправляем флаг на сервер
+                isPublic: isPublic
             })
         });
 
         if (!response.ok) {
-            let message = 'Ошибка создания группы';
+            let message = t('group.createError');
 
             try {
                 const data = await response.json();
@@ -249,7 +249,7 @@ async function createGroup() {
 
     } catch (error) {
         console.error('Ошибка создания группы:', error);
-        alert(error.message ?? 'Не удалось создать группу');
+        alert(error.message ?? t('group.createFailed'));
     } finally {
         if (createBtn) {
             createBtn.disabled = false;

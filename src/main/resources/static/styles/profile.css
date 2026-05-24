@@ -40,15 +40,19 @@
     align-items: flex-start;
     padding: 15px;
     border-radius: 10px 10px 0 0;
+    position: relative;
+    min-height: 160px;
 }
 
 .main-info-profile {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
-    gap: 8px;
     align-items: center;
-    width: 100%;
-    padding: 20px 0 10px;
+    text-align: center;
+    top: 20px;
 }
 
 .avatar-profile {
@@ -57,6 +61,13 @@
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid var(--border-color);
+}
+
+.header-profile .edit,
+.header-profile .close {
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
 }
 
 .nickname {

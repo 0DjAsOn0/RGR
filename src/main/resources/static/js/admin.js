@@ -1,9 +1,12 @@
+import { t, translateDOM } from './i18n.js';
+
 const state = {
     users: [],
     stats: null
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    translateDOM();
     bindEvents();
     await loadAdminPage();
 });
@@ -40,7 +43,7 @@ async function loadAdminPage() {
         ]);
     } catch (error) {
         console.error('Ошибка загрузки админки:', error);
-        showError(error.message || 'Не удалось загрузить админ-панель');
+        showError(error.message || t('admin.errorLoadPanel'));
     }
 }
 
@@ -68,7 +71,7 @@ function renderUsers() {
     if (!state.users.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="loading-row">Пользователи не найдены</td>
+                <td colspan="7" class="loading-row">${t('admin.noUsersFound')}</td>
             </tr>
         `;
         return;
@@ -92,7 +95,7 @@ function renderUsers() {
                 </td>
                 <td>
                     <span class="${isBlocked ? 'blocked-badge' : 'active-badge'}">
-                        ${isBlocked ? 'Заблокирован' : 'Активен'}
+                        ${isBlocked ? t('admin.statusBlocked') : t('admin.statusActive')}
                     </span>
                 </td>
                 <td>
@@ -102,7 +105,7 @@ function renderUsers() {
                             data-action="toggle-block"
                             data-user-id="${user.id}"
                             data-blocked="${isBlocked}">
-                            ${isBlocked ? 'Разблокировать' : 'Заблокировать'}
+                            ${isBlocked ? t('admin.actionUnblock') : t('admin.actionBlock')}
                         </button>
 
                         <button
@@ -110,7 +113,7 @@ function renderUsers() {
                             data-action="toggle-admin"
                             data-user-id="${user.id}"
                             data-admin="${isAdmin}">
-                            ${isAdmin ? 'Снять admin' : 'Сделать admin'}
+                            ${isAdmin ? t('admin.actionRemoveAdmin') : t('admin.actionMakeAdmin')}
                         </button>
                     </div>
                 </td>
@@ -131,7 +134,7 @@ async function toggleBlock(userId, currentlyBlocked) {
         await loadUsers();
     } catch (error) {
         console.error('Ошибка блокировки:', error);
-        showError(error.message || 'Не удалось изменить блокировку');
+        showError(error.message || t('admin.errorBlock'));
     }
 }
 
@@ -147,7 +150,7 @@ async function toggleAdminRole(userId, isAdminNow) {
         await loadUsers();
     } catch (error) {
         console.error('Ошибка смены роли:', error);
-        showError(error.message || 'Не удалось изменить роль');
+        showError(error.message || t('admin.errorRole'));
     }
 }
 
@@ -155,24 +158,28 @@ function renderStatus(status) {
     const normalized = String(status || '').toLowerCase();
 
     if (normalized === 'online') {
-        return '<span class="online-status">online</span>';
+        return `<span class="online-status">${t('status.online')}</span>`;
     }
 
-    return '<span class="offline-status">offline</span>';
+    return `<span class="offline-status">${t('status.offline')}</span>`;
 }
 
 async function request(url, options = {}) {
+    // Импортируем текущий язык, чтобы сервер понимал, какие ошибки отдавать (задел на будущее)
+    const { currentLang } = await import('./i18n.js');
+
     const response = await fetch(url, {
         credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
+            'Accept-Language': currentLang,
             ...(options.headers || {})
         },
         ...options
     });
 
     if (!response.ok) {
-        let message = `Ошибка ${response.status}`;
+        let message = `${t('admin.errorPrefix')} ${response.status}`;
         try {
             const text = await response.text();
             if (text) message = text;

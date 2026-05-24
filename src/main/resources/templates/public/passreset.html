@@ -9,62 +9,72 @@
     <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
     <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
     <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
-    <title>Сброс пароля</title>
+    <title data-i18n="title">Сброс пароля</title>
 </head>
 <body>
+<div style="position: absolute; top: 15px; right: 20px;">
+    <select id="langSelect" style="background: transparent; color: #888; border: none; cursor: pointer; outline: none; font-size: 14px;">
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+    </select>
+</div>
+
 <div class="login-box">
     <div class="logo">sicelica</div>
 
     <!-- ШАГ 1: Ввод email -->
     <div id="stepEmail">
-        <p class="step-hint">Введите email, указанный при регистрации</p>
+        <p class="step-hint" data-i18n="step1.hint">Введите email, указанный при регистрации</p>
         <form id="emailForm">
             <input id="email"
                    class="input"
                    type="text"
+                   data-i18n="step1.placeholder"
                    placeholder="введите почту"
                    autocomplete="email"
                    required/>
 
-            <button class="btn" id="sendCodeBtn" type="submit">
+            <button class="btn" id="sendCodeBtn" type="submit" data-i18n="step1.btn">
                 Отправить код
             </button>
 
             <div class="bottom-links">
-                <a th:href="@{/login}">Войти</a>
-                <a th:href="@{/register}">Регистрация</a>
+                <a th:href="@{/login}" data-i18n="link.login">Войти</a>
+                <a th:href="@{/register}" data-i18n="link.register">Регистрация</a>
             </div>
         </form>
     </div>
 
     <!-- ШАГ 2: Ввод кода -->
     <div id="stepCode" style="display: none;">
-        <p class="step-hint">Введите код из письма</p>
+        <p class="step-hint" data-i18n="step2.hint">Введите код из письма</p>
         <form id="codeForm">
             <input id="code"
                    class="input"
                    type="text"
+                   data-i18n="step2.placeholder"
                    placeholder="код подтверждения"
                    autocomplete="one-time-code"
                    required/>
 
-            <button class="btn" id="verifyCodeBtn" type="submit">
+            <button class="btn" id="verifyCodeBtn" type="submit" data-i18n="step2.btn">
                 Подтвердить
             </button>
 
             <div class="bottom-links">
-                <a href="#" id="resendCode">Отправить повторно</a>
+                <a href="#" id="resendCode" data-i18n="step2.resend">Отправить повторно</a>
             </div>
         </form>
     </div>
 
     <!-- ШАГ 3: Новый пароль -->
     <div id="stepNewPassword" style="display: none;">
-        <p class="step-hint">Введите новый пароль</p>
+        <p class="step-hint" data-i18n="step3.hint">Введите новый пароль</p>
         <form id="newPasswordForm">
             <input id="newPassword"
                    class="input"
                    type="password"
+                   data-i18n="step3.placeholder1"
                    placeholder="новый пароль"
                    autocomplete="new-password"
                    required/>
@@ -72,11 +82,12 @@
             <input id="newPasswordConfirmation"
                    class="input"
                    type="password"
+                   data-i18n="step3.placeholder2"
                    placeholder="повторите пароль"
                    autocomplete="new-password"
                    required/>
 
-            <button class="btn" id="resetBtn" type="submit">
+            <button class="btn" id="resetBtn" type="submit" data-i18n="step3.btn">
                 Сменить пароль
             </button>
         </form>
@@ -84,8 +95,129 @@
 </div>
 
 <script>
+    // ========================
+    // ЛОКАЛИЗАЦИЯ (i18n)
+    // ========================
+    const translations = {
+        ru: {
+            "title": "Сброс пароля",
+            "link.login": "Войти",
+            "link.register": "Регистрация",
+
+            "step1.hint": "Введите email, указанный при регистрации",
+            "step1.placeholder": "введите почту",
+            "step1.btn": "Отправить код",
+
+            "step2.hint": "Введите код из письма",
+            "step2.placeholder": "код подтверждения",
+            "step2.btn": "Подтвердить",
+            "step2.resend": "Отправить повторно",
+
+            "step3.hint": "Введите новый пароль",
+            "step3.placeholder1": "новый пароль",
+            "step3.placeholder2": "повторите пароль",
+            "step3.btn": "Сменить пароль",
+
+            // Тексты для JS
+            "js.btnSending": "Отправляем...",
+            "js.btnVerifying": "Проверяем...",
+            "js.btnSaving": "Сохраняем...",
+            "js.errEnterEmail": "Введите email",
+            "js.errValidEmail": "Введите корректный email",
+            "js.errSendCode": "Ошибка отправки кода",
+            "js.errServer": "Ошибка сервера. Попробуйте позже.",
+            "js.errEnterCode": "Введите код из письма",
+            "js.errInvalidCode": "Неверный или истёкший код",
+            "js.errFillFields": "Заполните все поля",
+            "js.errPassMatch": "Пароли не совпадают",
+            "js.errPassLength": "Пароль должен быть не менее 6 символов",
+            "js.errChangePass": "Ошибка смены пароля",
+            "js.errSpecifyEmail": "Сначала укажите email",
+            "js.succResend": "Код отправлен повторно",
+            "js.errResendFail": "Не удалось отправить код",
+            "js.timerResend": (sec) => `Повторно через ${sec}с`
+        },
+        en: {
+            "title": "Password Reset",
+            "link.login": "Login",
+            "link.register": "Register",
+
+            "step1.hint": "Enter the email used during registration",
+            "step1.placeholder": "enter email",
+            "step1.btn": "Send code",
+
+            "step2.hint": "Enter the code from the email",
+            "step2.placeholder": "verification code",
+            "step2.btn": "Verify",
+            "step2.resend": "Resend code",
+
+            "step3.hint": "Enter new password",
+            "step3.placeholder1": "new password",
+            "step3.placeholder2": "confirm password",
+            "step3.btn": "Change password",
+
+            // JS Texts
+            "js.btnSending": "Sending...",
+            "js.btnVerifying": "Verifying...",
+            "js.btnSaving": "Saving...",
+            "js.errEnterEmail": "Enter email",
+            "js.errValidEmail": "Enter a valid email",
+            "js.errSendCode": "Error sending code",
+            "js.errServer": "Server error. Please try again later.",
+            "js.errEnterCode": "Enter the code from the email",
+            "js.errInvalidCode": "Invalid or expired code",
+            "js.errFillFields": "Fill in all fields",
+            "js.errPassMatch": "Passwords do not match",
+            "js.errPassLength": "Password must be at least 6 characters",
+            "js.errChangePass": "Error changing password",
+            "js.errSpecifyEmail": "Please provide an email first",
+            "js.succResend": "Code resent successfully",
+            "js.errResendFail": "Failed to resend code",
+            "js.timerResend": (sec) => `Resend in ${sec}s`
+        }
+    };
+
+    let currentLang = localStorage.getItem('app_lang') || 'ru';
+    let t = translations[currentLang];
+
+    function applyTranslations() {
+        t = translations[currentLang];
+        document.documentElement.lang = currentLang;
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (!t[key]) return;
+
+            if (el.tagName === 'INPUT') {
+                el.placeholder = t[key];
+            } else if (el.tagName === 'TITLE') {
+                document.title = t[key];
+            } else {
+                el.textContent = t[key];
+            }
+        });
+    }
+
+    // ========================
+    // ОСНОВНАЯ ЛОГИКА
+    // ========================
     let userEmail = '';
     let resendCooldownTimer = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        applyTranslations();
+
+        const langSelect = document.getElementById('langSelect');
+        if (langSelect) {
+            langSelect.value = currentLang;
+            langSelect.addEventListener('change', (e) => {
+                currentLang = e.target.value;
+                localStorage.setItem('app_lang', currentLang);
+                applyTranslations();
+                clearMessages(); // Скрываем ошибки при смене языка, чтобы не висели на старом
+            });
+        }
+    });
 
     document.getElementById('emailForm')
         .addEventListener('submit', async function (e) {
@@ -95,29 +227,32 @@
             const email = document.getElementById('email').value.trim();
 
             if (!email) {
-                showError('Введите email');
+                showError(t["js.errEnterEmail"]);
                 return;
             }
 
             if (!isValidEmail(email)) {
-                showError('Введите корректный email');
+                showError(t["js.errValidEmail"]);
                 return;
             }
 
             const btn = document.getElementById('sendCodeBtn');
-            setButtonState(btn, true, 'Отправляем...');
+            setButtonState(btn, true, t["js.btnSending"]);
 
             try {
                 const response = await fetch('/api/v1/auth/forgot-password', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept-Language': currentLang
+                    },
                     body: JSON.stringify({ email })
                 });
 
                 const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(collectErrorMessage(data) || 'Ошибка отправки кода');
+                    showError(collectErrorMessage(data) || t["js.errSendCode"]);
                     return;
                 }
 
@@ -127,9 +262,9 @@
 
             } catch (error) {
                 console.error('Ошибка:', error);
-                showError('Ошибка сервера. Попробуйте позже.');
+                showError(t["js.errServer"]);
             } finally {
-                setButtonState(btn, false, 'Отправить код');
+                setButtonState(btn, false, t["step1.btn"]);
             }
         });
 
@@ -141,24 +276,27 @@
             const code = document.getElementById('code').value.trim();
 
             if (!code) {
-                showError('Введите код из письма');
+                showError(t["js.errEnterCode"]);
                 return;
             }
 
             const btn = document.getElementById('verifyCodeBtn');
-            setButtonState(btn, true, 'Проверяем...');
+            setButtonState(btn, true, t["js.btnVerifying"]);
 
             try {
                 const response = await fetch('/api/v1/auth/verify-reset-code', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept-Language': currentLang
+                    },
                     body: JSON.stringify({ email: userEmail, code })
                 });
 
                 const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(collectErrorMessage(data) || 'Неверный или истёкший код');
+                    showError(collectErrorMessage(data) || t["js.errInvalidCode"]);
                     return;
                 }
 
@@ -168,9 +306,9 @@
 
             } catch (error) {
                 console.error('Ошибка:', error);
-                showError('Ошибка сервера. Попробуйте позже.');
+                showError(t["js.errServer"]);
             } finally {
-                setButtonState(btn, false, 'Подтвердить');
+                setButtonState(btn, false, t["step2.btn"]);
             }
         });
 
@@ -183,27 +321,30 @@
             const newPasswordConfirmation = document.getElementById('newPasswordConfirmation').value;
 
             if (!newPassword || !newPasswordConfirmation) {
-                showError('Заполните все поля');
+                showError(t["js.errFillFields"]);
                 return;
             }
 
             if (newPassword !== newPasswordConfirmation) {
-                showError('Пароли не совпадают');
+                showError(t["js.errPassMatch"]);
                 return;
             }
 
             if (newPassword.length < 6) {
-                showError('Пароль должен быть не менее 6 символов');
+                showError(t["js.errPassLength"]);
                 return;
             }
 
             const btn = document.getElementById('resetBtn');
-            setButtonState(btn, true, 'Сохраняем...');
+            setButtonState(btn, true, t["js.btnSaving"]);
 
             try {
                 const response = await fetch('/api/v1/auth/reset-password', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept-Language': currentLang
+                    },
                     body: JSON.stringify({
                         email: userEmail,
                         newPassword,
@@ -214,7 +355,7 @@
                 const data = await tryReadJson(response);
 
                 if (!response.ok) {
-                    showError(collectErrorMessage(data) || 'Ошибка смены пароля');
+                    showError(collectErrorMessage(data) || t["js.errChangePass"]);
                     return;
                 }
 
@@ -222,9 +363,9 @@
 
             } catch (error) {
                 console.error('Ошибка:', error);
-                showError('Ошибка сервера. Попробуйте позже.');
+                showError(t["js.errServer"]);
             } finally {
-                setButtonState(btn, false, 'Сменить пароль');
+                setButtonState(btn, false, t["step3.btn"]);
             }
         });
 
@@ -234,7 +375,7 @@
             clearMessages();
 
             if (!userEmail) {
-                showError('Сначала укажите email');
+                showError(t["js.errSpecifyEmail"]);
                 switchStep('stepEmail');
                 return;
             }
@@ -245,32 +386,35 @@
 
             this.dataset.locked = 'true';
             this.style.pointerEvents = 'none';
-            this.textContent = 'Отправляем...';
+            this.textContent = t["js.btnSending"];
 
             try {
                 const response = await fetch('/api/v1/auth/forgot-password', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept-Language': currentLang
+                    },
                     body: JSON.stringify({ email: userEmail })
                 });
 
                 const data = await tryReadJson(response);
 
                 if (response.ok) {
-                    showSuccess('Код отправлен повторно');
+                    showSuccess(t["js.succResend"]);
                     startResendCooldown(this, 30);
                 } else {
                     this.dataset.locked = 'false';
                     this.style.pointerEvents = 'auto';
-                    this.textContent = 'Отправить повторно';
-                    showError(collectErrorMessage(data) || 'Не удалось отправить код');
+                    this.textContent = t["step2.resend"];
+                    showError(collectErrorMessage(data) || t["js.errResendFail"]);
                 }
             } catch (error) {
                 console.error('Ошибка:', error);
                 this.dataset.locked = 'false';
                 this.style.pointerEvents = 'auto';
-                this.textContent = 'Отправить повторно';
-                showError('Ошибка сервера');
+                this.textContent = t["step2.resend"];
+                showError(t["js.errServer"]);
             }
         });
 
@@ -373,7 +517,7 @@
 
         link.dataset.locked = 'true';
         link.style.pointerEvents = 'none';
-        link.textContent = `Повторно через ${remaining}с`;
+        link.textContent = t["js.timerResend"](remaining);
 
         resendCooldownTimer = setInterval(() => {
             remaining--;
@@ -383,11 +527,11 @@
                 resendCooldownTimer = null;
                 link.dataset.locked = 'false';
                 link.style.pointerEvents = 'auto';
-                link.textContent = 'Отправить повторно';
+                link.textContent = t["step2.resend"];
                 return;
             }
 
-            link.textContent = `Повторно через ${remaining}с`;
+            link.textContent = t["js.timerResend"](remaining);
         }, 1000);
     }
 </script>

@@ -2,6 +2,7 @@ import { escapeHtml } from './utils.js';
 import { state } from './app.js';
 import { closeCreateWindow, viewMyProfile } from './profile.js';
 import { updateNavbar } from './user.js';
+import { t } from './i18n.js'; // ✅ Добавлен импорт перевода
 
 const DEFAULT_AVATAR = 'avatars/default.png';
 let avatarChanged = false;
@@ -23,22 +24,22 @@ function hideError(el) {
 }
 
 function collectErrorMessage(data) {
-    if (!data) return 'Ошибка сохранения';
+    if (!data) return t('profile.errorSave');
     if (typeof data.error === 'string') return data.error;
 
     const values = Object.values(data).filter(v => typeof v === 'string');
     if (values.length > 0) return values.join(', ');
 
-    return 'Ошибка сохранения';
+    return t('profile.errorSave');
 }
 
 function validateUsername(username) {
     if (!username) return null;
     if (username.length < 3 || username.length > 30) {
-        return 'Имя пользователя должно быть от 3 до 30 символов';
+        return t('profile.errUsernameLength');
     }
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-        return 'Имя пользователя может содержать только латинские буквы, цифры и _';
+        return t('profile.errUsernameChars');
     }
     return null;
 }
@@ -60,11 +61,11 @@ function updatePasswordStrength(password) {
     if (/[^A-Za-z0-9]/.test(password)) strength++;
 
     const levels = [
-        { label: 'Очень слабый', color: '#ff4444' },
-        { label: 'Слабый',       color: '#ff8800' },
-        { label: 'Средний',      color: '#ffcc00' },
-        { label: 'Хороший',      color: '#88cc00' },
-        { label: 'Отличный',     color: '#00cc44' },
+        { label: t('pass.veryWeak'), color: '#ff4444' },
+        { label: t('pass.weak'),     color: '#ff8800' },
+        { label: t('pass.medium'),   color: '#ffcc00' },
+        { label: t('pass.good'),     color: '#88cc00' },
+        { label: t('pass.excellent'),color: '#00cc44' },
     ];
 
     const level = levels[Math.min(Math.max(strength - 1, 0), 4)];
@@ -97,12 +98,12 @@ async function handleAvatarChange(e) {
     hideError(errorEl);
 
     if (!file.type.startsWith('image/')) {
-        showError(errorEl, 'Только изображения');
+        showError(errorEl, t('profile.errOnlyImages'));
         return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-        showError(errorEl, 'Файл слишком большой (макс 5MB)');
+        showError(errorEl, t('profile.errFileSize'));
         return;
     }
 
@@ -129,7 +130,7 @@ async function handleAvatarChange(e) {
         } catch (_) {}
 
         if (!response.ok) {
-            throw new Error(data?.error ?? 'Ошибка загрузки');
+            throw new Error(data?.error ?? t('profile.errUpload'));
         }
 
         const url = `${data.avatarUrl}?t=${Date.now()}`;
@@ -177,23 +178,23 @@ async function saveProfile() {
     // Валидация пароля
     if (password || oldPassword || passwordConfirm) {
         if (!oldPassword) {
-            showError(errorEl, 'Введите текущий пароль');
+            showError(errorEl, t('profile.errEnterOldPass'));
             return;
         }
         if (!password) {
-            showError(errorEl, 'Введите новый пароль');
+            showError(errorEl, t('profile.errEnterNewPass'));
             return;
         }
         if (password.length < 6) {
-            showError(errorEl, 'Новый пароль минимум 6 символов');
+            showError(errorEl, t('profile.errPassMinLength'));
             return;
         }
         if (password !== passwordConfirm) {
-            showError(errorEl, 'Пароли не совпадают');
+            showError(errorEl, t('js.errPassMatch')); // Используем тот же ключ, что и при регистрации
             return;
         }
         if (password === oldPassword) {
-            showError(errorEl, 'Новый пароль совпадает с текущим');
+            showError(errorEl, t('profile.errPassSame'));
             return;
         }
     }
@@ -210,7 +211,7 @@ async function saveProfile() {
     }
 
     if (Object.keys(body).length === 0 && !avatarChanged) {
-        showError(errorEl, 'Нет изменений');
+        showError(errorEl, t('profile.errNoChanges'));
         return;
     }
 
@@ -224,13 +225,19 @@ async function saveProfile() {
     try {
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.textContent = 'Сохранение...';
+            saveBtn.textContent = t('js.btnSaving'); // Используем тот же ключ
         }
+
+        // Подключаем текущий язык
+        const { currentLang } = await import('./i18n.js');
 
         const response = await fetch('/api/v1/users/me', {
             method: 'PATCH',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept-Language': currentLang
+            },
             body: JSON.stringify(body)
         });
 
@@ -263,7 +270,7 @@ async function saveProfile() {
     } finally {
         if (saveBtn) {
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Сохранить';
+            saveBtn.textContent = t('app.save');
         }
     }
 }
@@ -285,9 +292,9 @@ export function showEditForm() {
 
     content.innerHTML = `
         <div class="header-profile">
-            <span class="edit" id="backToProfileBtn">← Назад</span>
+            <span class="edit" id="backToProfileBtn">← ${t('profile.backBtn')}</span>
             <div class="main-info-profile">
-                <span class="nickname">Редактирование</span>
+                <span class="nickname">${t('profile.editingTitle')}</span>
             </div>
             <span class="close" id="closeProfileBtn">&times;</span>
         </div>
@@ -299,7 +306,7 @@ export function showEditForm() {
                      src="${avatarUrl}"
                      alt="Аватар">
                 <div class="avatar-overlay">
-                    <span>Изменить фото</span>
+                    <span>${t('profile.changePhoto')}</span>
                 </div>
                 <input type="file"
                        id="avatarFileInput"
@@ -308,31 +315,31 @@ export function showEditForm() {
             </div>
 
             <div class="edit-field">
-                <label class="edit-label">Имя пользователя</label>
+                <label class="edit-label">${t('profile.username')}</label>
                 <input class="edit-input"
                        id="editUsername"
                        type="text"
                        value="${escapeHtml(user?.username ?? '')}"
-                       placeholder="Новое имя">
+                       placeholder="${t('profile.newName')}">
             </div>
 
-            <div class="edit-divider">Смена пароля</div>
+            <div class="edit-divider">${t('profile.changePassTitle')}</div>
 
             <div class="edit-field">
-                <label class="edit-label">Текущий пароль</label>
+                <label class="edit-label">${t('profile.oldPass')}</label>
                 <div class="password-input-wrap">
                     <input class="edit-input" id="editOldPassword"
-                           type="password" placeholder="Введите текущий пароль">
+                           type="password" placeholder="${t('profile.enterOldPass')}">
                     <button class="toggle-password"
                             data-target="editOldPassword" type="button">👁</button>
                 </div>
             </div>
 
             <div class="edit-field">
-                <label class="edit-label">Новый пароль</label>
+                <label class="edit-label">${t('profile.newPass')}</label>
                 <div class="password-input-wrap">
                     <input class="edit-input" id="editPassword"
-                           type="password" placeholder="Минимум 6 символов">
+                           type="password" placeholder="${t('profile.passMinLenPlaceholder')}">
                     <button class="toggle-password"
                             data-target="editPassword" type="button">👁</button>
                 </div>
@@ -340,10 +347,10 @@ export function showEditForm() {
             </div>
 
             <div class="edit-field">
-                <label class="edit-label">Подтвердите новый пароль</label>
+                <label class="edit-label">${t('profile.confirmNewPass')}</label>
                 <div class="password-input-wrap">
                     <input class="edit-input" id="editPasswordConfirm"
-                           type="password" placeholder="Повторите новый пароль">
+                           type="password" placeholder="${t('profile.repeatNewPass')}">
                     <button class="toggle-password"
                             data-target="editPasswordConfirm" type="button">👁</button>
                 </div>
@@ -351,10 +358,10 @@ export function showEditForm() {
 
             <div id="editError" class="edit-error" style="display:none"></div>
             <div id="editSuccess" class="edit-success" style="display:none">
-                Профиль обновлён ✓
+                ${t('profile.profileUpdated')} ✓
             </div>
 
-            <button class="edit-save-btn" id="saveProfileBtn">Сохранить</button>
+            <button class="edit-save-btn" id="saveProfileBtn">${t('app.save')}</button>
         </div>
     `;
 

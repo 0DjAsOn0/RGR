@@ -1,7 +1,16 @@
+import { currentLang, t } from './i18n.js';
+
 async function request(url, options = {}) {
+    // Подготавливаем заголовки, добавляя Accept-Language
+    const headers = {
+        'Accept-Language': currentLang,
+        ...(options.headers || {})
+    };
+
     const res = await fetch(url, {
         credentials: 'include',
-        ...options
+        ...options,
+        headers
     });
 
     if (res.status === 401) {
@@ -9,7 +18,7 @@ async function request(url, options = {}) {
     }
 
     if (!res.ok) {
-        let message = `Ошибка: ${res.status}`;
+        let message = `${t('api.error')}: ${res.status}`;
         try {
             const data = await res.json();
             message = data.error || data.message || message;
@@ -69,9 +78,11 @@ export async function setOffline() {
 }
 
 export async function searchPublicGroups(query) {
-    const response = await fetch(`/api/v1/chats/search?query=${encodeURIComponent(query)}`, {
-        credentials: 'include'
-    });
-    if (!response.ok) return [];
-    return await response.json();
+    // В этой функции тоже используем базовый запрос,
+    // чтобы она подхватила логику Accept-Language и обработку ошибок
+    try {
+        return await request(`/api/v1/chats/search?query=${encodeURIComponent(query)}`);
+    } catch (e) {
+        return [];
+    }
 }

@@ -9,34 +9,72 @@
     <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
     <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
     <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
-    <title>Подтвердите email</title>
+    <title id="pageTitle">Подтвердите email</title>
 </head>
 <body>
 <div class="login-box">
     <div class="logo">sicelica</div>
 
     <div style="text-align: center; padding: 20px;">
-        <h2>Письмо отправлено!</h2>
+        <h2 id="titleText">Письмо отправлено!</h2>
         <p id="emailText">
             Проверьте вашу почту и перейдите по ссылке для подтверждения аккаунта.
         </p>
-        <p style="color: #888; font-size: 14px;">Ссылка действительна 24 часа.</p>
+        <p id="subText" style="color: #888; font-size: 14px;">Ссылка действительна 24 часа.</p>
     </div>
 
     <div class="bottom-links">
-        <a th:href="@{/login}">Вернуться на страницу входа</a>
+        <a th:href="@{/login}" id="backLink">Вернуться на страницу входа</a>
     </div>
 </div>
 
 <script>
+    // 1. Получаем текущий язык из хранилища (как в основном приложении)
+    const currentLang = localStorage.getItem('app_lang') || 'ru';
+
+    // 2. Локальные переводы для этой страницы
+    const translations = {
+        ru: {
+            title: "Подтвердите email",
+            header: "Письмо отправлено!",
+            textDefault: "Проверьте вашу почту и перейдите по ссылке для подтверждения аккаунта.",
+            textWithEmail: (email) => `Письмо отправлено на ${email}. Перейдите по ссылке для подтверждения аккаунта.`,
+            subText: "Ссылка действительна 24 часа.",
+            backLink: "Вернуться на страницу входа"
+        },
+        en: {
+            title: "Confirm Email",
+            header: "Email sent!",
+            textDefault: "Check your email and click the link to confirm your account.",
+            textWithEmail: (email) => `An email has been sent to ${email}. Click the link to confirm your account.`,
+            subText: "The link is valid for 24 hours.",
+            backLink: "Back to login page"
+        }
+    };
+
+    const t = translations[currentLang] || translations.ru;
+
+    // 3. Применяем переводы к статике
+    document.getElementById('pageTitle').textContent = t.title;
+    document.getElementById('titleText').textContent = t.header;
+    document.getElementById('subText').textContent = t.subText;
+    document.getElementById('backLink').textContent = t.backLink;
+
+    // 4. Обрабатываем динамический email (если он передан в URL)
     const params = new URLSearchParams(window.location.search);
     const email = params.get('email');
     const emailText = document.getElementById('emailText');
 
-    if (email && emailText) {
-        emailText.textContent =
-            `Письмо отправлено на ${email}. Перейдите по ссылке для подтверждения аккаунта.`;
+    if (emailText) {
+        if (email) {
+            emailText.textContent = t.textWithEmail(email);
+        } else {
+            emailText.textContent = t.textDefault;
+        }
     }
+
+    // Если нужно, меняем атрибут lang у документа для SEO
+    document.documentElement.lang = currentLang;
 </script>
 </body>
 </html>
