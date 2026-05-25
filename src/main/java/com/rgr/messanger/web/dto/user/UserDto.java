@@ -36,6 +36,8 @@ public class UserDto {
     @Size(min = 6, max = 100,
             message = "Пароль должен быть от 6 до 100 символов",
             groups = OnCreate.class)
+    // Регулярка означает: Строка от начала (^) до конца ($) НЕ должна содержать [^...] русские буквы
+    @Pattern(regexp = "^[^А-Яа-яЁё]+$", message = "Пароль не должен содержать русские буквы")
     private String password;
 
     @NotBlank(message = "Подтверждение пароля не может быть пустым",

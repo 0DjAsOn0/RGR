@@ -79,13 +79,15 @@
             "btn.register": "Зарегистрироваться",
             "link.login": "Войти",
 
+
             // Тексты для JS
             "js.errFillFields": "Пожалуйста, заполните все поля",
             "js.errPassMatch": "Пароли не совпадают",
             "js.errValidEmail": "Введите корректный email",
             "js.btnSending": "Отправляем...",
             "js.errRegister": "Ошибка регистрации",
-            "js.errServer": "Ошибка сервера. Попробуйте позже."
+            "js.errServer": "Ошибка сервера. Попробуйте позже.",
+            "js.errPassCyrillic": "Пароль не должен содержать русские буквы"
         },
         en: {
             "title": "Registration",
@@ -102,7 +104,8 @@
             "js.errValidEmail": "Enter a valid email",
             "js.btnSending": "Sending...",
             "js.errRegister": "Registration error",
-            "js.errServer": "Server error. Please try again later."
+            "js.errServer": "Server error. Please try again later.",
+            "js.errPassCyrillic": "Password must not contain Russian letters"
         }
     };
 
@@ -162,6 +165,11 @@
 
             if (password !== passwordConfirmation) {
                 showError(t["js.errPassMatch"]);
+                return;
+            }
+
+            if (/[А-Яа-яЁё]/.test(password)) {
+                showError(t["js.errPassCyrillic"]);
                 return;
             }
 

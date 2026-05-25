@@ -330,6 +330,11 @@
                 return;
             }
 
+            if (/[А-Яа-яЁё]/.test(newPassword)) {
+                showError(t["js.errPassCyrillic"]);
+                return;
+            }
+
             if (newPassword.length < 6) {
                 showError(t["js.errPassLength"]);
                 return;

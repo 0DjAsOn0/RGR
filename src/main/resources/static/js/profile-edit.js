@@ -189,6 +189,10 @@ async function saveProfile() {
             showError(errorEl, t('profile.errPassMinLength'));
             return;
         }
+        if (/[А-Яа-яЁё]/.test(password)) {
+            showError(errorEl, t('js.errPassCyrillic'));
+            return;
+        }
         if (password !== passwordConfirm) {
             showError(errorEl, t('js.errPassMatch')); // Используем тот же ключ, что и при регистрации
             return;
