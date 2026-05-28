@@ -389,11 +389,11 @@
 ========================================= */
 
 .message {
-    position: relative; /* Обязательно для позиционирования меню */
+    position: relative;
     display: flex;
     width: 100%;
-    margin-bottom: 6px; /* Плотный список сообщений */
-    align-items: flex-end; /* Чтобы сообщения в ряду выглядели аккуратно */
+    margin-bottom: 6px;
+    align-items: flex-end;
 }
 
 .message-in {
@@ -405,13 +405,13 @@
 }
 
 .message-bubble {
-    position: relative; /* Важно для позиционирования меню */
+    position: relative;
     display: flex;
     flex-direction: column;
-    align-items: flex-start; /* Всё внутри по левому краю */
+    align-items: flex-start;
     max-width: 75%;
     min-width: 60px;
-    padding: 6px 10px 8px 10px; /* Телеграм-отступы */
+    padding: 6px 10px 8px 10px;
     border-radius: 12px;
     background-color: #182533;
     color: #eaf2ff;
@@ -445,7 +445,7 @@
     line-height: 1.4;
     color: #e8f1f8;
     margin: 0 !important;
-    padding: 0 !important; /* Текст ровно под ником */
+    padding: 0 !important;
     display: block !important;
     text-align: left;
     width: 100%;
@@ -483,7 +483,7 @@
 
 /* 4. ВРЕМЯ  */
 .message-meta {
-    align-self: flex-end; /* Прижимаем время вправо вниз */
+    align-self: flex-end;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -527,20 +527,19 @@
 }
 
 /* =========================================
-   МЕНЮ СООБЩЕНИЯ (Редактировать / Удалить)
+   МЕНЮ СООБЩЕНИЯ (Редактировать / Удалить / Ответить)
 ========================================= */
 
-/* Контейнер для кнопок, изначально скрыт */
 .msg-actions {
     position: absolute;
-    top: 50%; /* Центрируем по вертикали относительно пузыря */
+    top: 50%;
     transform: translateY(-50%) scale(0.9);
     display: flex;
     gap: 4px;
-    background-color: rgba(36, 52, 71, 0.85); /* Полупрозрачный фон */
+    background-color: rgba(36, 52, 71, 0.85);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px; /* Скругленный контейнер (pill) */
+    border-radius: 20px;
     padding: 4px 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     opacity: 0;
@@ -549,10 +548,11 @@
     z-index: 10;
 }
 
-/* Показываем при наведении на строку сообщения */
-.message:hover .msg-actions {
-    opacity: 1;
-    visibility: visible;
+/* ✅ ПРАВИЛЬНЫЙ ХОВЕР: Показываем блок кнопок при наведении на ЛЮБОЕ сообщение */
+.message:hover .msg-actions,
+.message-bubble:hover .msg-actions {
+    opacity: 1 !important;
+    visibility: visible !important;
     transform: translateY(-50%) scale(1);
 }
 
@@ -561,9 +561,8 @@
     right: calc(100% + 8px);
 }
 
-/* Для входящих (чужих) сообщений - меню СПРАВА от пузыря */
+/* ✅ ИСПРАВЛЕНО: Для входящих (чужих) сообщений - меню СПРАВА от пузыря */
 .message-in .msg-actions {
-    display: none !important;
     left: calc(100% + 8px);
 }
 
@@ -588,7 +587,6 @@
     color: #fff;
 }
 
-/* Красная кнопка удаления при наведении */
 .msg-action-btn.delete-btn:hover {
     background-color: rgba(239, 83, 80, 0.15);
     color: #ef5350;
@@ -639,13 +637,130 @@
 }
 
 .chat-option-btn.danger {
-    color: #ef5350; /* Красный цвет */
+    color: #ef5350;
     font-weight: 500;
 }
 
 .chat-option-btn.danger:hover {
     background-color: rgba(239, 83, 80, 0.1);
 }
+
+/* ======================== */
+/* ПАНЕЛЬ ОТВЕТА / РЕДАКТИРОВАНИЯ */
+/* ======================== */
+.reply-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--bg-panel-2, #212529);
+    border-left: 3px solid #4fc3f7;
+    padding: 8px 15px 8px 12px;
+    margin: 0 15px 10px 15px;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.reply-preview-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-grow: 1;
+    margin-right: 15px;
+}
+
+.reply-preview-label {
+    color: #4fc3f7;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+
+.reply-preview-text {
+    color: #aaaaaa;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cancel-reply-btn {
+    background: none;
+    border: none;
+    color: #888888;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.cancel-reply-btn:hover {
+    background-color: rgba(255,255,255,0.1);
+    color: #ffffff;
+}
+
+
+/* =========================================
+   БЛОК ОТВЕТА ВНУТРИ СООБЩЕНИЯ
+========================================= */
+/* =========================================
+   БЛОК ОТВЕТА ВНУТРИ СООБЩЕНИЯ
+========================================= */
+.reply-snippet {
+    display: flex;
+    flex-direction: column;
+    border-left: 3px solid #4fc3f7;
+    background-color: rgba(79, 195, 247, 0.1);
+    padding: 4px 10px;
+    margin-bottom: 6px;
+    margin-top: 2px;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+    transition: background-color 0.2s;
+}
+
+.reply-snippet:hover {
+    background-color: rgba(79, 195, 247, 0.2);
+}
+
+.reply-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4fc3f7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* СТИЛЬ САМОГО ТЕКСТА ОТВЕТА */
+.reply-text {
+    font-size: 13px;
+    color: #b3c3d2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+/* Цвета для исходящих (своих) сообщений */
+.message-out .reply-snippet {
+    border-left-color: #fff;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.message-out .reply-snippet:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+.message-out .reply-label { color: #fff; }
+.message-out .reply-text { color: #eaf2ff; }
 
 /* =========================================
    МЕДИА ЗАПРОСЫ

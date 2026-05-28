@@ -59,9 +59,8 @@
 </div>
 
 <script>
-    // ========================
+
     // ЛОКАЛИЗАЦИЯ (i18n)
-    // ========================
     const translations = {
         ru: {
             "title": "Вход",
@@ -108,9 +107,9 @@
         });
     }
 
-    // ========================
-    // ОСНОВНОЙ КОД
-    // ========================
+
+
+    // функция вывода ошибок пользователю (она вычленяет понятный текст ошибки и выводит)
     function collectErrorMessage(data) {
         if (!data) return '';
         if (typeof data === 'string') return data;
@@ -120,8 +119,10 @@
         return '';
     }
 
+    //ожидает полной загрузки структуры HTML (DOM-дерева), после чего запускает код
     document.addEventListener('DOMContentLoaded', function () {
-        // Инициализация языка
+
+        // переключение языка
         applyTranslations();
 
         const langSelect = document.getElementById('langSelect');
@@ -132,7 +133,7 @@
                 localStorage.setItem('app_lang', currentLang);
                 applyTranslations();
 
-                // Если ошибка висит на экране, переводим и её
+                // если ошибка то, переводим и её
                 if (errorBox.style.display === 'block' && errorBox.dataset.isDefaultError === 'true') {
                     errorBox.textContent = t["error.default"];
                 }
@@ -144,18 +145,21 @@
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
 
+        // функция отправки формы
         loginForm.addEventListener('submit', async function (e) {
-            e.preventDefault();
+            e.preventDefault(); //отключение перезагрузки страницы
 
             errorBox.style.display = 'none';
             errorBox.textContent = t["error.default"];
             errorBox.dataset.isDefaultError = 'true';
 
+            //данные которые ввел пользователь
             const email = emailInput.value.trim();
             const password = passwordInput.value;
             const rememberMe = document.querySelector('input[name="remember-me"]').checked;
 
             try {
+                //отправляем данные пользователя
                 const response = await fetch('/api/v1/auth/login', {
                     method: 'POST',
                     headers: {
@@ -184,7 +188,7 @@
                     errorBox.style.display = 'block';
                     return;
                 }
-
+                // переходим к чату
                 window.location.href = '/chat';
 
             } catch (err) {
@@ -194,7 +198,7 @@
                 errorBox.style.display = 'block';
             }
         });
-
+        //скрываем ошибку когда пользователь вводит заново почту или пароль
         [emailInput, passwordInput].forEach(input => {
             input.addEventListener('input', function () {
                 errorBox.style.display = 'none';

@@ -113,9 +113,6 @@ function renderUserProfile(user) {
                 <span class="chat-info-label">Email</span>
                 <span class="chat-info-value">${escapeHtml(email)}</span>
             </div>
-            <div class="chat-info-row">
-                <span class="chat-info-label">ID</span>
-            </div>
         </div>
     `);
 }

@@ -8,7 +8,7 @@ import { viewMyProfile, closeCreateWindow, toggleEmailNotifications } from './pr
 import { loadCurrentUser, stopHeartbeat, logout } from './user.js';
 import { initAttachments, uploadFiles, initLightbox } from './attachments.js';
 import { initChatInfo, openUserProfile, openGroupInfo } from './chat-info.js';
-import { t, translateDOM, setLanguage, currentLang } from './i18n.js'; // ✅ Добавлено t
+import { t, translateDOM, setLanguage, currentLang } from './i18n.js';
 
 const DEFAULT_AVATAR = '/avatars/default.png';
 
@@ -32,46 +32,60 @@ const PROCESSED_LIMIT = 500;
 // ========================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Переводим статический HTML при загрузке
+    // переводим страницу при загрузке
     translateDOM();
 
-    // Настраиваем переключатель языка, если он есть на странице
+    // настраиваем переключатель языка, если он есть на странице
     const langSelect = document.getElementById('langSelect');
     if (langSelect) {
         langSelect.value = currentLang;
         langSelect.addEventListener('change', (e) => setLanguage(e.target.value));
     }
 
+    //получаем данные текущего пользователя
     await loadCurrentUser();
-
+    //проверка правильно ли загрузился пользователь, если нет, то на логин кидает
     if (!state.currentUser) {
         return;
     }
 
+    //получаем чатики пользователя
     await refreshChatsNow();
 
+
+    //(WebSocket) постоянное двустороннее соединение с сервером
+    // теперь сервер может отправлять новые сообщения без обновления страницы
     connectWebSocket(onMessageReceived);
 
-    initResizer();
-    initEventListeners();
-    initGroupModal();
-    initLightbox();
-    initChatInfo();
+    //прогрузка всяких приколюх
+    initResizer(); //растягивание списка чатов
+    initEventListeners(); // обработчик событий
+    initGroupModal(); //иконки кнопчки
+    initLightbox(); //открытие фоток больше и кароч чтобы фон затемнялся круто
+    initChatInfo(); //открытие инфы о чатике в окошке
 });
 
+// функция в которой анализируем куда кликает пользователь и выполняем действия в зависимости от этого
 function initEventListeners() {
+
+    //если на профильбатон тыкнул, то показывается профиль пользователя
     document.getElementById('profileBtn')
         ?.addEventListener('click', viewMyProfile);
 
+
+    //если на логаут тыкнул, то выходим с аккаунта
     document.getElementById('logoutBtn')
         ?.addEventListener('click', logout);
 
+
+    //если в поле поиска вводит то ищем че он там ввел
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
             handleSearch(e.target.value);
         });
 
+        //нажал ентр заходим в чат с первым в списке
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -79,6 +93,7 @@ function initEventListeners() {
                 if (firstResult) firstResult.click();
             }
 
+            //нажал ескейп то выходим с поиска
             if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
@@ -87,6 +102,7 @@ function initEventListeners() {
         });
     }
 
+    //анализируем куда кликает пользователь и выполняем действия в зависимости от этого
     document.addEventListener('click', (e) => {
 
         // 1. Открытие/закрытие меню опций чата (кнопка ⋮)
@@ -116,6 +132,15 @@ function initEventListeners() {
             e.stopPropagation();
             if (chatOptionsMenu) chatOptionsMenu.style.display = 'none';
             deleteCurrentChat();
+            return;
+        }
+
+        //Обработка кнопки ОТВЕТИТЬ на сообщение
+        const replyBtn = e.target.closest('.reply-btn');
+        if (replyBtn) {
+            const msgId = replyBtn.dataset.id;
+            const text = replyBtn.dataset.text;
+            setReply(msgId, text);
             return;
         }
 
@@ -153,7 +178,7 @@ function initEventListeners() {
             return;
         }
 
-        // Кнопка закрытия панели Reply / Edit
+        // Кнопка закрытия панели ответа или редактирования
         const cancelReply = e.target.closest('.cancel-reply-btn');
         if (cancelReply) {
             clearReply();
@@ -203,12 +228,14 @@ function initEventListeners() {
             return;
         }
 
+        //клик отправить сообщение
         const sendBtn = e.target.closest('.send-btn');
         if (sendBtn) {
             sendMessage();
             return;
         }
 
+        //клик создания беседы
         const profilePage = document.getElementById('createWindow');
         if (profilePage && e.target === profilePage) {
             closeCreateWindow();
@@ -216,6 +243,8 @@ function initEventListeners() {
         }
     });
 
+
+    //отправка сообщения на энтр
     document.addEventListener('keydown', (e) => {
         if (!e.target.matches('#messageInput')) return;
 
@@ -225,15 +254,21 @@ function initEventListeners() {
         }
     });
 
+
+    //обработчик кнопки esc
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
 
+
+        //если открыты всплывающие окна то в первую очередь закрываем их
         const profilePage = document.getElementById('createWindow');
         if (profilePage && profilePage.style.display !== 'none') {
             closeCreateWindow();
             return;
         }
 
+
+        //потом по приоритету отмена поиска
         const searchInputEl = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
         const hasSearchValue = !!searchInputEl?.value?.trim();
@@ -248,6 +283,8 @@ function initEventListeners() {
             return;
         }
 
+
+        //потом уже закрытие чата
         if (state.currentChatId) {
             if (history.state?.chatOpen) {
                 history.back();
@@ -257,12 +294,16 @@ function initEventListeners() {
         }
     });
 
+
+    //обработчик кнопки назад
     window.addEventListener('popstate', () => {
         if (state.currentChatId) {
             closeChatView();
         }
     });
 
+
+    //выход из онлайна при закрытии вкладки например
     window.addEventListener('beforeunload', () => {
         stopHeartbeat();
 
@@ -276,11 +317,16 @@ function initEventListeners() {
 // УДАЛЕНИЕ ЧАТА / ОЧИСТКА ЗАМЕТОК
 // ========================
 async function deleteCurrentChat() {
+
+    //проверка на то что вообще чето открыто)
     if (!state.currentChatId) return;
 
+    //определяем заметки или прост чат с челиксами
     const card = document.querySelector(`.card[data-chat-id="${state.currentChatId}"]`);
     const isNotes = card?.dataset.chatType === 'notes';
 
+
+    //спрашиваем точно ли мы хотим удалить чатикс
     const confirmMsg = isNotes
         ? t('chat.confirmClearNotes')
         : t('chat.confirmDeleteChat');
@@ -289,6 +335,8 @@ async function deleteCurrentChat() {
         return;
     }
 
+
+    //отправляем запрос на сервер
     try {
         const response = await fetch(`/api/v1/chats/${state.currentChatId}`, {
             method: 'DELETE',
@@ -299,6 +347,8 @@ async function deleteCurrentChat() {
             throw new Error('Ошибка удаления');
         }
 
+
+        //если заметки, то остается чат в списке чатов, но он прост без сообщений
         if (isNotes) {
             const container = document.getElementById('messagesContainer');
             if (container) {
@@ -306,9 +356,12 @@ async function deleteCurrentChat() {
                 container.classList.add('empty');
             }
         } else {
+
+            //если обычный чат, то удаляется все и закрывается чат, удаляется со списка чатов
             closeChatView();
         }
 
+        //обновляем список чатов (который слева)
         refreshChatsDebounced();
 
     } catch (error) {
@@ -329,9 +382,10 @@ async function joinPublicGroup(chatId, cardElement) {
             throw new Error('Не удалось вступить в группу');
         }
 
-        clearSearch(false);
-        await refreshChatsNow();
-        openChat(cardElement);
+
+        clearSearch(false);  //очищаем поиск
+        await refreshChatsNow(); //перезагружаем список чатов
+        openChat(cardElement);  //открываем найденный чат
 
     } catch (error) {
         console.error(error);
@@ -344,20 +398,26 @@ async function joinPublicGroup(chatId, cardElement) {
 // ========================
 
 function openCurrentChatInfo() {
-    if (!state.currentChatId) return;
+
+    if (!state.currentChatId) return; //опять проверка на то что существует или нет
 
     const card = document.querySelector(`.card[data-chat-id="${state.currentChatId}"]`);
     const chatType = card?.dataset.chatType ?? 'private';
 
+
+    //если заметки то не открываем инфу о чате (че там показывать?)))
     if (chatType === 'notes') {
         return;
     }
 
+    //ну тут открываем инфу о группе
     if (chatType === 'group') {
         openGroupInfo(state.currentChatId);
         return;
     }
 
+
+    //тут открываем профиль собеседника
     const userId = card?.dataset.userId || state.currentChatUserId;
     if (userId) {
         openUserProfile(userId);
@@ -368,6 +428,10 @@ function openCurrentChatInfo() {
 // ЧАТЫ: СИНХРОНИЗАЦИЯ
 // ========================
 
+
+//функции обновления списка чатиков(слева)
+
+//ждем 200мс пока сообщения не прекратят поступать и обновляем если больше ничего не приходит
 function refreshChatsDebounced(delay = 200) {
     if (chatsRefreshTimer) {
         clearTimeout(chatsRefreshTimer);
@@ -379,6 +443,8 @@ function refreshChatsDebounced(delay = 200) {
     }, delay);
 }
 
+
+//защита от наложения запросов друг на друга
 async function refreshChatsNow() {
     if (chatsRefreshInFlight) return;
 
@@ -396,6 +462,7 @@ async function refreshChatsNow() {
 // HISTORY API
 // ========================
 
+//обман браузера, чтобы при нажатии кнопки назад не выкидывало никуда
 function pushChatState(chatId) {
     history.pushState(
         { chatOpen: true, chatId },
@@ -404,6 +471,8 @@ function pushChatState(chatId) {
     );
 }
 
+
+//сама функция закрытия чата, вызывалась выше
 function closeChatView() {
     state.currentChatId = null;
     state.currentChatUserId = null;
@@ -424,12 +493,17 @@ function closeChatView() {
 // PREVIEW ДЛЯ СПИСКА ЧАТОВ
 // ========================
 
+//формирование надписи в списке чатов
 function getPreviewText(msg) {
+
+    //если текст или текст + файл то выводит текст
     const text = typeof msg?.text === 'string' ? msg.text.trim() : '';
     if (text) return text;
 
     const type = String(msg?.type || '').toLowerCase();
 
+
+    //если чисто файл то определяем что за тип файла фото видео и т.д.
     if (type === 'image' || type === 'images') return t('chat.previewPhoto');
     if (type === 'video') return t('chat.previewVideo');
     if (type === 'audio') return t('chat.previewAudio');
@@ -438,6 +512,8 @@ function getPreviewText(msg) {
         return fileName ? `📎 ${fileName}` : t('chat.previewFile');
     }
 
+
+    //если не получилось тип определить то смотрим имя папки в которой оно лежит
     if (Array.isArray(msg?.attachments) && msg.attachments.length > 0) {
         const attachment = msg.attachments[0];
         const mime = String(attachment?.mimeType || '').toLowerCase();
@@ -449,15 +525,19 @@ function getPreviewText(msg) {
         return attachment?.fileName ? `📎 ${attachment.fileName}` : t('chat.previewFile');
     }
 
+
+    //если непонятно что то выводим нет сообщений
     return t('chat.noMessages');
 }
 
+//перенос чата вверх при поступлении сообщения
 function moveChatCard(card) {
     const container = card?.parentElement;
     if (!container) return;
 
     const isNotes = card.dataset.chatType === 'notes';
 
+    //заметки всегда сверху
     if (isNotes) {
         container.prepend(card);
         return;
@@ -465,6 +545,8 @@ function moveChatCard(card) {
 
     const notesCard = container.querySelector('.card[data-chat-type="notes"]');
 
+
+    //находим карточку заметок и ставим чат под ними
     if (notesCard && notesCard !== card) {
         notesCard.insertAdjacentElement('afterend', card);
     } else {
@@ -473,16 +555,22 @@ function moveChatCard(card) {
 }
 
 function updateChatPreview(msg) {
+
+    //ищем карточку чата
     const card = document.querySelector(`.card[data-chat-id="${msg.chatId}"]`);
     if (!card) return false;
 
     const previewEl = card.querySelector('.user-message');
     const timeEl = card.querySelector('.message-time');
 
+
+    //обновляем превью чата(последнее сообщение)
     if (previewEl) {
         previewEl.textContent = getPreviewText(msg);
     }
 
+
+    //обновляем время когда прислали(тут функция берет время из сообщения и прост переводит в часы минуты)
     if (timeEl) {
         const rawTime = msg.createdAt || msg.time;
         if (rawTime) {
@@ -496,23 +584,28 @@ function updateChatPreview(msg) {
         }
     }
 
-    if (String(state.currentChatId) !== String(msg.chatId)) {
+    //счетчик непрочитаных
+
+    if (String(state.currentChatId) !== String(msg.chatId)) { //проверям открыт чат прям щас или нет
         let badge = card.querySelector('.unread-badge');
         const previewRow = card.querySelector('.message-preview');
 
+
+        //создаем индикатор непрочитаных
         if (!badge && previewRow) {
             badge = document.createElement('span');
             badge.className = 'unread-badge';
             previewRow.appendChild(badge);
         }
 
+        //прибавляем к индикатору сообщения
         if (badge) {
             const current = Number(badge.textContent || '0');
             badge.textContent = String(current + 1);
         }
     }
 
-    moveChatCard(card);
+    moveChatCard(card);  //отправляем вверх списка
     return true;
 }
 
@@ -520,14 +613,19 @@ function updateChatPreview(msg) {
 // WS ОБРАБОТЧИК
 // ========================
 
+//обработка событий, которые присылает сервер
+
 function onMessageReceived(frame) {
     const msg = JSON.parse(frame.body);
 
+
+    //обновить статус сообщения
     if (msg.type === 'STATUS_UPDATE') {
         updateMessageStatus(msg.messageId, msg.status);
         return;
     }
 
+    //обновить список чатов
     if (msg.type === 'CHAT_LIST_UPDATE') {
         const chatId = String(msg.chatId);
 
@@ -549,12 +647,15 @@ function onMessageReceived(frame) {
         return;
     }
 
+
+    //стирает удаленное сообщение
     if (msg.type === 'MESSAGE_DELETED') {
         const msgEl = document.querySelector(`.message[data-id="${msg.messageId}"]`);
         if (msgEl) msgEl.remove();
         return;
     }
 
+    //меняет текст сообщение которое отредачили
     if (msg.type === 'MESSAGE_EDITED') {
         const msgEl = document.querySelector(`.message[data-id="${msg.messageId}"]`);
         if (msgEl) {
@@ -572,6 +673,8 @@ function onMessageReceived(frame) {
         return;
     }
 
+
+    //пришло новое сообщение мы его проверяем на дубликат
     if (msg.id != null) {
         const key = String(msg.id);
         if (processedMessageIds.has(key)) {
@@ -589,10 +692,15 @@ function onMessageReceived(frame) {
         }
     }
 
+    //проверка чье сообщение
     msg.own = Number(msg.senderId) === Number(state.currentUser?.id);
 
+
+    //тут уже добавление присланного сообщения на экран
     const isCurrentChat = String(msg.chatId) === String(state.currentChatId);
 
+
+    //это проверка чтобы чат в который пришло был открыт
     if (isCurrentChat) {
         const container = document.getElementById('messagesContainer');
         if (container && !container.querySelector(`[data-id="${msg.id}"]`)) {
@@ -601,6 +709,8 @@ function onMessageReceived(frame) {
         }
     }
 
+
+    //действия со списком чатов
     const updated = updateChatPreview(msg);
     if (!updated) {
         refreshChatsDebounced();
@@ -612,13 +722,18 @@ function onMessageReceived(frame) {
 // ========================
 
 export async function openChat(card) {
+
+    //подсветка открытого чата
     document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
     card.classList?.add('active');
 
+
+    //удаление индикатора непрочитанных
     const badge = card.querySelector('.unread-badge');
     if (badge) {
         badge.remove();
     }
+
 
     const userId = card.dataset.userId;
     const userName = card.dataset.userName ?? t('chat.defaultInterlocutor');
@@ -629,6 +744,7 @@ export async function openChat(card) {
     const isNotes = chatType === 'notes';
     const isGroup = chatType === 'group';
 
+    //создается чат с пользователем из поиска
     if (!chatId && userId) {
         const data = await fetchOrCreateChat(userId);
         chatId = data.chatId;
@@ -640,18 +756,23 @@ export async function openChat(card) {
         return;
     }
 
+    //запоминаем что открыт определенный чат
     state.currentChatId = chatId;
     state.currentChatUserId = userId || null;
     state.replyToId = null;
     state.editMessageId = null;
 
+
     pushChatState(chatId);
 
+    //запрос на сервер что надо прочитать все сообщения
     fetch(`/api/v1/messages/chat/${chatId}/read`, {
         method: 'POST',
         credentials: 'include'
     }).catch(err => console.error('Ошибка отметки прочитанных:', err));
 
+
+    //отрисовка чата на странице
     const dialog = document.getElementById('mainDialog');
     if (!dialog) return;
 
@@ -719,18 +840,24 @@ export async function openChat(card) {
 
     attachmentManager = initAttachments();
 
+
+    //смотрим когда пользователь был в сети
     if (!isNotes && !isGroup && userId && Number(userId) !== 0) {
         loadUserStatus(userId);
     }
 
+
     const openedChatId = String(chatId);
 
+    //скачивает с сервера всю историю переписки
     await loadMessages(chatId);
 
+    //защита от быстрых кликов чтобы сообщения не прогрузились в чужой чат
     if (String(state.currentChatId) !== openedChatId) {
         return;
     }
 
+    //подключение вебсокета чтобы онлайн отрисовывались сообщения
     subscribeToChat(chatId, onMessageReceived);
 }
 
@@ -740,15 +867,18 @@ export async function openChat(card) {
 
 async function loadUserStatus(userId) {
     try {
+        //запрос информации о пользователе чтобы получить статус его
         const response = await fetch(`/api/v1/users/${userId}`, {
             credentials: 'include'
         });
 
         if (!response.ok) return;
 
+        //получаем ответ
         const user = await response.json();
         const statusEl = document.getElementById('dialogStatus');
 
+        //если есть текст в ответе то выводим, если нет то оффлайн
         if (statusEl) {
             statusEl.textContent = user.lastSeen ?? t('status.offline');
             statusEl.style.color = user.status === 'online' ? '#4caf50' : '';
@@ -762,27 +892,34 @@ async function loadUserStatus(userId) {
 // ОТВЕТ НА СООБЩЕНИЕ И РЕДАКТИРОВАНИЕ
 // ========================
 
+
 export function setReply(messageId, messageText) {
+
+    //запоминает id сообщения на которое отвечаем
     state.replyToId = messageId;
     state.editMessageId = null;
 
+    //рисуем его поверх окна ввода
     const label = document.querySelector('.reply-preview-label');
     if (label) label.textContent = t('chat.replyTo');
 
     const replyPreview = document.getElementById('replyPreview');
     const replyText = document.getElementById('replyPreviewText');
 
+    //защита чтоб отвечать нормально на нетекстовое сообщение
     if (replyPreview && replyText) {
         const safeText = (messageText && messageText.trim())
             ? messageText
             : t('chat.messageWithoutText');
 
+        //обрезаем длинный текст
         replyText.textContent =
             safeText.slice(0, 80) + (safeText.length > 80 ? '...' : '');
 
         replyPreview.style.display = 'flex';
     }
 
+    //очищаем поле ввода
     const input = document.getElementById('messageInput');
     if (input) {
         input.value = '';
@@ -790,6 +927,7 @@ export function setReply(messageId, messageText) {
     }
 }
 
+//закрывает плашку ответа на соощение
 function clearReply() {
     state.replyToId = null;
     const replyPreview = document.getElementById('replyPreview');
@@ -802,12 +940,14 @@ function clearReply() {
 // ОТПРАВКА СООБЩЕНИЯ (И РЕДАКТИРОВАНИЕ)
 // ========================
 
+//функция которая решает каким способом отправлять
 async function sendMessage() {
     const input = document.getElementById('messageInput');
     if (!input || !state.currentChatId) return;
 
     const content = input.value.trim();
 
+    //проверка новое сообщение или редактирование
     if (state.editMessageId) {
         if (!content) return;
 
@@ -833,6 +973,7 @@ async function sendMessage() {
         return;
     }
 
+    //есть ли файлы
     const hasFiles = attachmentManager?.hasFiles() ?? false;
 
     if (!content && !hasFiles) return;
@@ -842,6 +983,8 @@ async function sendMessage() {
         return;
     }
 
+
+    //этим отправляем только текст
     if (isConnected()) {
         sendWsMessage(state.currentChatId, content, state.replyToId);
         input.value = '';
@@ -852,6 +995,7 @@ async function sendMessage() {
     }
 }
 
+//отправка вложений
 async function sendMessageWithFiles(text, input) {
     const files = attachmentManager?.getFiles?.() ?? [];
 
@@ -897,6 +1041,8 @@ async function sendMessageWithFiles(text, input) {
     }
 }
 
+
+//отправляет обычный текст классическим способом, если современные технологии (Вебсокет) дали сбой
 async function sendMessageHttp(content, input) {
     try {
         const response = await fetch(`/api/v1/messages/chat/${state.currentChatId}`, {

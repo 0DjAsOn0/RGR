@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS chats (
                                      id         BIGSERIAL PRIMARY KEY,
                                      type       VARCHAR(20) NOT NULL DEFAULT 'private'
                                          CHECK (type IN ('private', 'group')),
-                                     is_public  BOOLEAN NOT NULL DEFAULT FALSE, -- <== ДОБАВЛЕН ФЛАГ (публичный или приватный чат)
+                                     is_public  BOOLEAN NOT NULL DEFAULT FALSE, --  (публичный или приватный чат)
                                      name       VARCHAR(100),
                                      avatar_url TEXT,
                                      creator_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS chats (
 
 CREATE INDEX IF NOT EXISTS idx_chats_type       ON chats(type);
 CREATE INDEX IF NOT EXISTS idx_chats_creator_id ON chats(creator_id);
-CREATE INDEX IF NOT EXISTS idx_chats_is_public  ON chats(is_public); -- <== ДОБАВЛЕН ИНДЕКС для быстрого поиска публичных групп
+CREATE INDEX IF NOT EXISTS idx_chats_is_public  ON chats(is_public); -- для быстрого поиска публичных групп
 
 -- CHAT MEMBERS
 CREATE TABLE IF NOT EXISTS chat_members (

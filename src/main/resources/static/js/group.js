@@ -2,7 +2,7 @@ import { state } from './app.js';
 import { searchUsers } from './api.js';
 import { escapeHtml, collectErrorMessage } from './utils.js';
 import { loadChats } from './ui.js';
-import { t } from './i18n.js'; // ✅ Добавлен импорт перевода
+import { t } from './i18n.js';
 
 const DEFAULT_AVATAR = 'avatars/default.png';
 

@@ -55,79 +55,106 @@ function getAttachmentFallback(type) {
 // РЕНДЕР СООБЩЕНИЯ
 // ========================
 
-function buildMessage(msg) {
+// ✅ ТЕПЕРЬ ФУНКЦИЯ ПРИНИМАЕТ МАССИВ ВСЕХ СООБЩЕНИЙ ДЛЯ ПОИСКА ОРИГИНАЛА
+function buildMessage(msg, allMessages = []) {
     const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
     const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
     const text = getMessageText(msg);
 
-    const attachmentsHtml = attachments.length > 0
-        ? renderAttachments(attachments)
-        : '';
-
-    const textHtml = text
-        ? `<div class="msg-text">${escapeHtml(text)}</div>`
-        : '';
-
+    const attachmentsHtml = attachments.length > 0 ? renderAttachments(attachments) : '';
+    const textHtml = text ? `<div class="msg-text">${escapeHtml(text)}</div>` : '';
     const needsAttachmentFallback = !text && attachments.length === 0 && msg.type && msg.type !== 'text';
+    const attachmentFallbackHtml = needsAttachmentFallback ? `<div class="msg-text">${escapeHtml(getAttachmentFallback(msg.type))}</div>` : '';
 
-    const attachmentFallbackHtml = needsAttachmentFallback
-        ? `<div class="msg-text">${escapeHtml(getAttachmentFallback(msg.type))}</div>`
-        : '';
+    // ==========================================
+    // ✅ УМНЫЙ БЛОК ОТВЕТА (ИЩЕТ ОРИГИНАЛЬНЫЙ ТЕКСТ)
+    // ==========================================
+    let replyHtml = '';
+    if (msg.replyToId) {
+        let replySender = '';
+        let replyText = t('chat.replyToMessage'); // Дефолтный текст
 
-    const replyHtml = msg.replyToId
-        ? `
-            <div class="reply-snippet">
-                <span class="reply-label">${t('chat.replyToMessage')}</span>
-            </div>
-        `
-        : '';
+        // 1. Пытаемся найти оригинальное сообщение в массиве (при загрузке истории)
+        const parentMsg = allMessages.find(m => String(m.id) === String(msg.replyToId));
 
-    const editedHtml = msg.isEdited
-        ? `<span class="msg-edited-mark">(${t('chat.editedShort')})</span>`
-        : '';
+        if (parentMsg) {
+            replySender = parentMsg.senderName || '';
+            const pText = getMessageText(parentMsg);
 
-    const hasVisibleContent = Boolean(
-        replyHtml ||
-        textHtml ||
-        attachmentsHtml ||
-        attachmentFallbackHtml
-    );
+            if (pText) {
+                replyText = pText; // Если есть текст - берем его
+            } else if (parentMsg.type && parentMsg.type !== 'text') {
+                replyText = getAttachmentFallback(parentMsg.type); // Если файл - берем тип (Фото/Видео)
+            } else if (parentMsg.attachments && parentMsg.attachments.length > 0) {
+                replyText = t('chat.previewAttachment');
+            }
+        } else {
+            // 2. Если в массиве нет, ищем прямо в HTML (для новых сообщений по WebSockets)
+            const parentEl = document.querySelector(`.message[data-id="${msg.replyToId}"]`);
+            if (parentEl) {
+                const senderEl = parentEl.querySelector('.message-sender');
+                if (senderEl) replySender = senderEl.textContent;
 
-    if (!hasVisibleContent) {
-        return '';
-    }
+                const textEl = parentEl.querySelector('.msg-text');
+                if (textEl) replyText = textEl.textContent;
+            }
+        }
 
-    let actionsHtml = '';
-    if (isOwn) {
-        // Добавлены title из словаря
-        actionsHtml = text ? `
-            <div class="msg-actions">
-                <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="${t('app.edit')}">
-                    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                </button>
-                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="${t('app.delete')}">
-                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                </button>
-            </div>
-        ` : `
-            <div class="msg-actions">
-                <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="${t('app.delete')}">
-                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                </button>
+        // Если это свои заметки, не пишем имя отправителя
+        const isNotes = document.getElementById('dialogStatus')?.textContent.toLowerCase().includes(t('chat.notes').toLowerCase());
+        const senderLabel = (!replySender || isNotes) ? t('chat.replyToMessage') : replySender;
+
+        // Генерируем HTML ответа с функцией прокрутки (scrollIntoView)
+        replyHtml = `
+            <div class="reply-snippet" onclick="document.querySelector('.message[data-id=\\'${msg.replyToId}\\']')?.scrollIntoView({behavior: 'smooth', block: 'center'})">
+                <span class="reply-label">
+                    <svg viewBox="0 0 24 24" width="12" height="12" style="margin-right: 4px; vertical-align: -1px;"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                    ${escapeHtml(senderLabel)}
+                </span>
+                <span class="reply-text">${escapeHtml(replyText)}</span>
             </div>
         `;
     }
 
+    const editedHtml = msg.isEdited ? `<span class="msg-edited-mark">(${t('chat.editedShort')})</span>` : '';
+
+    const hasVisibleContent = Boolean(replyHtml || textHtml || attachmentsHtml || attachmentFallbackHtml);
+    if (!hasVisibleContent) return '';
+
+    // ==========================================
+    // БЛОК КНОПОК ДЕЙСТВИЙ
+    // ==========================================
+    let actionsHtml = `<div class="msg-actions">`;
+    const replyDataText = text || getAttachmentFallback(msg.type);
+    actionsHtml += `
+        <button class="msg-action-btn reply-btn" data-id="${msg.id}" data-text="${escapeHtml(replyDataText)}" title="${t('chat.replyBtn') || 'Ответить'}">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+        </button>
+    `;
+
+    if (isOwn) {
+        if (text) {
+            actionsHtml += `
+                <button class="msg-action-btn edit-btn" data-id="${msg.id}" data-text="${escapeHtml(text)}" title="${t('app.edit')}">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+            `;
+        }
+        actionsHtml += `
+            <button class="msg-action-btn delete-btn" data-id="${msg.id}" title="${t('app.delete')}">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+        `;
+    }
+    actionsHtml += `</div>`;
+
     return `
-        <div class="message ${isOwn ? 'message-out' : 'message-in'}"
-             data-id="${msg.id}">
+        <div class="message ${isOwn ? 'message-out' : 'message-in'}" data-id="${msg.id}">
             <div class="message-bubble">
                 ${actionsHtml}
                 
-                ${!isOwn && msg.senderName
-        ? `<span class="message-sender">${escapeHtml(msg.senderName)}</span>`
-        : ''
-    }
+                ${!isOwn && msg.senderName ? `<span class="message-sender">${escapeHtml(msg.senderName)}</span>` : ''}
+                
                 ${replyHtml}
                 ${attachmentsHtml}
                 ${textHtml}
@@ -151,19 +178,17 @@ export function renderMessages(messages) {
     const container = document.getElementById('messagesContainer');
     if (!container) return;
 
+    // ✅ ПЕРЕДАЕМ ВЕСЬ МАССИВ messages ВНУТРЬ buildMessage
     const html = (messages ?? [])
-        .map(buildMessage)
+        .map(msg => buildMessage(msg, messages))
         .filter(Boolean)
         .join('');
 
     if (!html) {
         container.classList.add('empty');
-
-        // Для проверки, "Заметки" ли это, используем мультиязычный ключ t('chat.notes')
         const dialogStatus = document.getElementById('dialogStatus');
         const isNotes = dialogStatus && dialogStatus.textContent.toLowerCase().includes(t('chat.notes').toLowerCase());
         const emptyText = isNotes ? t('chat.noNotesYet') : t('chat.start');
-
         container.innerHTML = `<div class="no-messages">${emptyText}</div>`;
         return;
     }
@@ -186,11 +211,9 @@ export function appendMessage(msg) {
 
     if (container.querySelector(`[data-id="${msg.id}"]`)) return;
 
-    const html = buildMessage(msg);
-    if (!html) {
-        console.warn('Сообщение не содержит отображаемого контента:', msg);
-        return;
-    }
+    // Для одиночного сообщения передаем пустой массив (функция найдет оригинал в HTML)
+    const html = buildMessage(msg, []);
+    if (!html) return;
 
     container.insertAdjacentHTML('beforeend', html);
     container.scrollTop = container.scrollHeight;

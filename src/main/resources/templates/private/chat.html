@@ -8,7 +8,7 @@
     <link rel="stylesheet" th:href="@{/styles/chat.css}"/>
     <link rel="stylesheet" th:href="@{/styles/profile.css}"/>
     <link rel="stylesheet" th:href="@{/styles/modals.css}"/>
-    <link rel="stylesheet" href="/styles/chat-info.css">
+    <link rel="stylesheet" th:href="@{/styles/chat-info.css}"/>
     <link rel="icon" th:href="@{/icons/favicon.ico}" type="image/x-icon">
     <title data-i18n="app.title">Мессенджер</title>
 </head>
@@ -29,7 +29,6 @@
 
         <div class="settings-block" style="display: flex; align-items: center; gap: 15px;">
 
-            <!-- ✅ ПЕРЕКЛЮЧАТЕЛЬ ЯЗЫКОВ -->
             <select id="langSelect" style="background: transparent; color: #888; border: none; cursor: pointer; outline: none; font-size: 14px;">
                 <option value="ru">RU</option>
                 <option value="en">EN</option>
