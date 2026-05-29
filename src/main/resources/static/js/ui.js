@@ -11,7 +11,6 @@ let searchRequestId = 0;
 // ========================
 // СПИСОК ЧАТОВ
 // ========================
-
 export async function loadChats() {
     try {
         const chats = await fetchChats();
@@ -23,6 +22,7 @@ export async function loadChats() {
     }
 }
 
+//последнее сообщение чтобы было показано в списке чатов чо там было
 function getLastMessagePreview(chat) {
     const text = typeof chat.lastMessage === 'string' ? chat.lastMessage.trim() : '';
     const type = String(chat.lastMessageType || '').toLowerCase();
@@ -45,6 +45,7 @@ function getLastMessagePreview(chat) {
     }
 }
 
+//типы чатов какие нужны
 function normalizeChatType(chat) {
     if (chat.type === 'notes') return 'notes';
     if (chat.type === 'group') return 'group';
@@ -52,6 +53,7 @@ function normalizeChatType(chat) {
     return 'private';
 }
 
+//отрисовка списка чатов
 export function renderChatList(chats) {
     const container = document.getElementById('chatsContainer');
     if (!container) return;
@@ -126,12 +128,15 @@ export function renderChatList(chats) {
 // ПОИСК (ПОЛЬЗОВАТЕЛИ + ГРУППЫ)
 // ========================
 
+//поиск по строке
 export async function handleSearch(query) {
     const searchResults = document.getElementById('searchResults');
     const chatsContainer = document.getElementById('chatsContainer');
 
+    //сброс таймаута поиска
     clearTimeout(searchTimeout);
 
+    //ограничение 2 символа в поиске
     if (!query || query.trim().length < 2) {
         searchRequestId++;
         if (searchResults) {
@@ -142,6 +147,8 @@ export async function handleSearch(query) {
         return;
     }
 
+
+    //отложеный запус поиска чтобы не отправлять много запросов если пользователь скорострел
     searchTimeout = setTimeout(async () => {
         const currentRequestId = ++searchRequestId;
 
@@ -171,7 +178,9 @@ export async function handleSearch(query) {
     }, 300);
 }
 
+//отрисовка результатов
 function renderCombinedSearchResults(users, groups) {
+
     const searchResults = document.getElementById('searchResults');
     if (!searchResults) return;
 
@@ -246,22 +255,26 @@ function renderCombinedSearchResults(users, groups) {
 // ========================
 // ДЕЙСТВИЯ С ЧАТАМИ И ПОИСКОМ
 // ========================
-
+//начать чат с пользователем
 export async function startChatWithUser(userId, username, avatarUrl) {
     try {
         const data = await fetchOrCreateChat(userId);
         const chatId = data.chatId;
 
+        //очищаем поле поиска
         clearSearch(false);
 
+        //перезагружаем список чатов
         await loadChats();
 
+        //поиск карточки
         const realCard = document.querySelector(`.card[data-chat-id="${chatId}"]`);
         if (realCard) {
             await openChat(realCard);
             return;
         }
 
+        //если че создается временная
         const tempCard = document.createElement('li');
         tempCard.className = 'card';
         tempCard.dataset.chatId = chatId;
@@ -271,6 +284,7 @@ export async function startChatWithUser(userId, username, avatarUrl) {
         tempCard.dataset.chatType =
             Number(userId) === Number(state.currentUser?.id) ? 'notes' : 'private';
 
+        //открываем чат
         await openChat(tempCard);
 
     } catch (error) {
@@ -278,6 +292,7 @@ export async function startChatWithUser(userId, username, avatarUrl) {
     }
 }
 
+//очистка поля поиска
 export function clearSearch(reloadChats = true) {
     const searchInput = document.getElementById('searchInput');
     const searchResults = document.getElementById('searchResults');
@@ -305,7 +320,7 @@ export function clearSearch(reloadChats = true) {
 // ========================
 // RESIZER
 // ========================
-
+//изменение размера списка чатов
 export function initResizer() {
     const resizer = document.querySelector('.resizer');
     const chatsList = document.querySelector('.chats-list');

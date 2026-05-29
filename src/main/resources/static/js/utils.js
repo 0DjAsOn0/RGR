@@ -1,3 +1,4 @@
+//защита от XSS
 export function escapeHtml(text) {
     if (text == null) return '';
 
@@ -13,6 +14,7 @@ function wrapStatusIcon(svg) {
     return `<span class="status-icon">${svg}</span>`;
 }
 
+//отрисовка статусов отправки в сообщениях
 export function formatStatus(status) {
     switch (status) {
         case 'SENDING':

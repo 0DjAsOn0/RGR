@@ -2,7 +2,7 @@ import { escapeHtml } from './utils.js';
 import { state } from './app.js';
 import { closeCreateWindow, viewMyProfile } from './profile.js';
 import { updateNavbar } from './user.js';
-import { t } from './i18n.js'; // ✅ Добавлен импорт перевода
+import { t } from './i18n.js';
 
 const DEFAULT_AVATAR = 'avatars/default.png';
 let avatarChanged = false;
@@ -282,7 +282,7 @@ async function saveProfile() {
 // ========================
 // ФОРМА РЕДАКТИРОВАНИЯ
 // ========================
-
+//отрисовка самой формы
 export function showEditForm() {
     avatarChanged = false;
 

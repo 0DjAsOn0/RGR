@@ -21,10 +21,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     private final EmailService     emailService;
     private final JwtTokenProvider jwtTokenProvider;
 
-    /**
-     * @Lazy для JwtTokenProvider — обход циклической зависимости
-     * (UserService → EmailVerificationService → JwtTokenProvider → UserDetailsService → UserService).
-     */
+
     public EmailVerificationServiceImpl(
             UserRepo userRepo,
             EmailService emailService,
@@ -35,6 +32,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
+    //отправка письма с верификацией -> далле зайти в сервис
     @Override
     public void sendVerification(String email, String username) {
         String token = jwtTokenProvider.generateVerificationToken(email);
@@ -42,13 +40,17 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         log.info("Verification email queued for: {}", email);
     }
 
+    //подтверждение
     @Override
     @Transactional
     public void verifyToken(String token) {
+
+        //проверка что токен есть
         if (token == null || token.isBlank()) {
             throw new EmailVerificationException("Токен не указан");
         }
 
+        //извлекаем емаил из токена
         String email;
         try {
             email = jwtTokenProvider.getEmailFromVerificationToken(token);
@@ -58,9 +60,11 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             throw new EmailVerificationException("Недействительная ссылка");
         }
 
+        //ищем в бд пользователя с такой почтой
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new EmailVerificationException("Пользователь не найден"));
 
+        //подтверждается только один раз
         if (user.isEmailVerified()) {
             throw new EmailVerificationException("Email уже подтверждён");
         }

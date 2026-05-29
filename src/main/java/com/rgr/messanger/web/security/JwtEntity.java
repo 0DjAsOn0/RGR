@@ -8,6 +8,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
+
+//пользователь в формате безопасности Spring Security
 @Getter
 @ToString(exclude = "password")
 @EqualsAndHashCode(of = "id")

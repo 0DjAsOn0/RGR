@@ -1,5 +1,3 @@
-// js/i18n.js
-
 const translations = {
     ru: {
         "app.title": "Мессенджер",

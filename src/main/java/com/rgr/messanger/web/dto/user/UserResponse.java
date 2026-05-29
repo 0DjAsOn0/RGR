@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 
+//расширенный DTO для отдачи на фронтенд
 public record UserResponse(
         Long    id,
         String  username,

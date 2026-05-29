@@ -12,11 +12,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function bindEvents() {
+    //кнопка обновления
     document.getElementById('refreshBtn')?.addEventListener('click', () => {
         loadAdminPage();
     });
 
+    //Обработчик кликов по таблице пользователей
     document.getElementById('usersTableBody')?.addEventListener('click', async (e) => {
+
+        //кнопка блокировать
         const blockBtn = e.target.closest('[data-action="toggle-block"]');
         if (blockBtn) {
             const userId = Number(blockBtn.dataset.userId);
@@ -25,6 +29,7 @@ function bindEvents() {
             return;
         }
 
+        //кнопка назначить администратора
         const roleBtn = e.target.closest('[data-action="toggle-admin"]');
         if (roleBtn) {
             const userId = Number(roleBtn.dataset.userId);
@@ -34,6 +39,7 @@ function bindEvents() {
     });
 }
 
+//основная загрузка страницы
 async function loadAdminPage() {
     hideError();
     try {
@@ -47,23 +53,27 @@ async function loadAdminPage() {
     }
 }
 
+//статистика
 async function loadStats() {
     const stats = await request('/api/v1/admin/stats');
     state.stats = stats;
     renderStats();
 }
 
+//загрузка пользователей
 async function loadUsers() {
     const users = await request('/api/v1/admin/users');
     state.users = Array.isArray(users) ? users : [];
     renderUsers();
 }
 
+//отрисовка статитсткик
 function renderStats() {
     document.getElementById('totalUsers').textContent = state.stats?.totalUsers ?? '0';
     document.getElementById('totalMessages').textContent = state.stats?.totalMessages ?? '0';
 }
 
+//отрисовка пользователей
 function renderUsers() {
     const tbody = document.getElementById('usersTableBody');
     if (!tbody) return;
@@ -122,6 +132,7 @@ function renderUsers() {
     }).join('');
 }
 
+//логика блокировки или разблокировки пользователя
 async function toggleBlock(userId, currentlyBlocked) {
     try {
         await request(`/api/v1/admin/users/${userId}/block`, {
@@ -138,6 +149,7 @@ async function toggleBlock(userId, currentlyBlocked) {
     }
 }
 
+//логика назначения админом пользователя
 async function toggleAdminRole(userId, isAdminNow) {
     try {
         const roles = isAdminNow ? ['ROLE_USER'] : ['ROLE_ADMIN'];
@@ -154,6 +166,7 @@ async function toggleAdminRole(userId, isAdminNow) {
     }
 }
 
+// показывает online/offline в таблице
 function renderStatus(status) {
     const normalized = String(status || '').toLowerCase();
 
@@ -164,6 +177,7 @@ function renderStatus(status) {
     return `<span class="offline-status">${t('status.offline')}</span>`;
 }
 
+//функция для запросов
 async function request(url, options = {}) {
     // Импортируем текущий язык, чтобы сервер понимал, какие ошибки отдавать (задел на будущее)
     const { currentLang } = await import('./i18n.js');
@@ -197,6 +211,7 @@ async function request(url, options = {}) {
     return null;
 }
 
+//показ ошибки
 function showError(message) {
     const box = document.getElementById('adminError');
     if (!box) return;
@@ -205,6 +220,7 @@ function showError(message) {
     box.textContent = message;
 }
 
+//скрытие ошибки
 function hideError() {
     const box = document.getElementById('adminError');
     if (!box) return;
@@ -213,6 +229,7 @@ function hideError() {
     box.textContent = '';
 }
 
+//защита от XSS
 function escapeHtml(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')

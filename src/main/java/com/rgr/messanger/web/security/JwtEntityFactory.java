@@ -9,6 +9,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+//используется для преобразования сущности User в JwtEntity,
+// с которым работает Spring Security. При этом роли пользователя переводятся из Set<Role>
+// в список GrantedAuthority, чтобы затем можно было проверять доступ по ролям, например ROLE_ADMIN.
 public final class JwtEntityFactory {
 
     private JwtEntityFactory() {

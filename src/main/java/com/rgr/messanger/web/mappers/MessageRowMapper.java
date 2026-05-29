@@ -8,6 +8,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 
+//превратить строку результата SQL-запроса в объект
 public class MessageRowMapper {
 
     private MessageRowMapper() {} // utility-класс

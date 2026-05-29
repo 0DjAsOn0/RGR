@@ -8,6 +8,8 @@ const HEARTBEAT_INTERVAL_MS = 10000;
 const DEFAULT_AVATAR = '/avatars/default.png';
 
 export async function loadCurrentUser() {
+
+    //загружаем данные о пользователе
     try {
         const user = await fetchCurrentUser();
         state.currentUser = user;
@@ -24,6 +26,7 @@ export async function loadCurrentUser() {
     }
 }
 
+//обновляем интерфейс ставим аву пользователя и пишем его ник
 export function updateNavbar(user) {
     const profileLabel = document.querySelector('.profile-button .base-inscription');
     if (profileLabel) {
@@ -41,6 +44,7 @@ export function updateNavbar(user) {
 export function startHeartbeat() {
     stopHeartbeat();
 
+    //активность пользователя
     const beat = async () => {
         try {
             await sendHeartbeat();
@@ -59,10 +63,12 @@ export function startHeartbeat() {
         }
     };
 
+    //отправляем онлайн
     beat();
     heartbeatInterval = setInterval(beat, HEARTBEAT_INTERVAL_MS);
 }
 
+//остановка прослушивания
 export function stopHeartbeat() {
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
@@ -70,6 +76,7 @@ export function stopHeartbeat() {
     }
 }
 
+//разлогиниваемся
 export async function logout() {
     try {
         stopHeartbeat();
@@ -90,6 +97,7 @@ export async function logout() {
     }
 }
 
+//пользователя надо разлогинить
 function handleUnauthorized() {
     stopHeartbeat();
     disconnect();
@@ -97,6 +105,7 @@ function handleUnauthorized() {
     window.location.href = '/login';
 }
 
+//очистка состояния пользователя
 function clearUserState() {
     state.currentUser = null;
     state.currentChatId = null;

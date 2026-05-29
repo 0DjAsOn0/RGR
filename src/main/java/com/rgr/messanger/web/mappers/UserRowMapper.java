@@ -9,6 +9,7 @@ import java.sql.Timestamp;
 import java.util.HashSet;
 import java.util.Set;
 
+//превратить строку результата SQL-запроса в объект
 public final class UserRowMapper {
 
     private UserRowMapper() {
@@ -77,33 +78,56 @@ public final class UserRowMapper {
     }
 
     private static User mapUserFields(ResultSet rs) throws SQLException {
+        // Создаем пустой объект User, в который будем переносить данные из ResultSet
         User user = new User();
 
+        // Читаем из результата SQL-запроса основные поля пользователя
+        // Здесь используются алиасы колонок вида user_id, user_username и т.д.
         user.setId(rs.getLong("user_id"));
         user.setUsername(rs.getString("user_username"));
         user.setEmail(rs.getString("user_email"));
+
+        // Признак подтверждения email
         user.setEmailVerified(rs.getBoolean("user_email_verified"));
+
+        // Настройка email-уведомлений
         user.setEmailNotifications(rs.getBoolean("user_email_notifications"));
+
+        // Признак блокировки пользователя
         user.setBlocked(rs.getBoolean("user_blocked"));
+
+        // Хеш пароля пользователя
         user.setPassword(rs.getString("user_password"));
+
+        // Ссылка на аватар пользователя
         user.setAvatarUrl(rs.getString("user_avatar_url"));
+
+        // Текущий статус пользователя, например online / offline
         user.setStatus(rs.getString("user_status"));
 
+        // Поле last_seen в БД имеет тип Timestamp,
+        // поэтому сначала читаем его как Timestamp
         Timestamp lastSeen = rs.getTimestamp("user_last_seen");
+
+        // Если значение не null, преобразуем Timestamp в LocalDateTime
+        // и записываем в объект User
         if (lastSeen != null) {
             user.setLastSeen(lastSeen.toLocalDateTime());
         }
 
+        // Дата создания пользователя
         Timestamp createdAt = rs.getTimestamp("user_created_at");
         if (createdAt != null) {
             user.setCreatedAt(createdAt.toLocalDateTime());
         }
 
+        // Дата последнего обновления пользователя
         Timestamp updatedAt = rs.getTimestamp("user_updated_at");
         if (updatedAt != null) {
             user.setUpdatedAt(updatedAt.toLocalDateTime());
         }
 
+        // Возвращаем полностью заполненный объект User
         return user;
     }
 }

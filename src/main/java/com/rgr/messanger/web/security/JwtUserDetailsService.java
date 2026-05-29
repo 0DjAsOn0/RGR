@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+
+//получить пользователя для аутентификации
 public class JwtUserDetailsService implements UserDetailsService {
 
     private final UserService userService;

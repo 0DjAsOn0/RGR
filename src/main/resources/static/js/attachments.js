@@ -16,11 +16,15 @@ export function initAttachments() {
 
     attachBtn.addEventListener('click', () => fileInput.click());
 
+
+    //обработка файлов которые скинули
     fileInput.addEventListener('change', (e) => {
         handleFiles(e.target.files);
         fileInput.value = '';
     });
 
+
+    //работа с подсветкой и дизайном области ввода
     const inputArea = document.querySelector('.dialog-input-area');
     if (inputArea) {
         inputArea.addEventListener('dragover', (e) => {
@@ -39,29 +43,43 @@ export function initAttachments() {
         });
     }
 
+
+    //обработка файлов
     function handleFiles(fileList) {
+
+        //перебираем файлы
         Array.from(fileList).forEach(file => {
+
+            //проверка на количество файлов
             if (selectedFiles.length >= MAX_FILES) {
                 alert(t('attach.maxFilesAlert')(MAX_FILES));
                 return;
             }
 
+            //проверка на размер файлов
             if (file.size > MAX_SIZE_MB * 1024 * 1024) {
                 alert(t('attach.tooBigAlert')(file.name, MAX_SIZE_MB));
                 return;
             }
 
+            //если все норм то кидаем на отправку
             selectedFiles.push(file);
         });
 
+
+        //предпросмотр файлов
         renderPreview();
     }
 
+
+    //очищаем память браузера
     function clearPreviewUrls() {
         previewUrls.forEach(url => URL.revokeObjectURL(url));
         previewUrls = [];
     }
 
+
+    //превью вложений
     function renderPreview() {
         clearPreviewUrls();
         preview.innerHTML = '';
@@ -107,6 +125,8 @@ export function initAttachments() {
                 item.appendChild(icon);
             }
 
+
+            //кнопка удаления
             const removeBtn = document.createElement('button');
             removeBtn.className = 'preview-remove';
             removeBtn.type = 'button';
@@ -121,6 +141,9 @@ export function initAttachments() {
         });
     }
 
+    // возвращает копию выбранных файлов
+    // Очищает список файлов и превью после отправки
+    // Проверяет, есть ли вообще прикрепленные файлы
     return {
         getFiles: () => [...selectedFiles],
         clearFiles: () => {
@@ -133,7 +156,7 @@ export function initAttachments() {
 }
 
 // ========================
-// ОТПРАВКА ФАЙЛОВ
+// ОТПРАВКА ФАЙЛОВ на сервер
 // ========================
 export async function uploadFiles(chatId, files, text, replyToId) {
     const formData = new FormData();
@@ -148,6 +171,7 @@ export async function uploadFiles(chatId, files, text, replyToId) {
     // Подключаем текущий язык для отправки на сервер
     const { currentLang } = await import('./i18n.js');
 
+    //запрос
     const response = await fetch(`/api/v1/attachments/upload/${chatId}`, {
         method: 'POST',
         credentials: 'include',
@@ -157,6 +181,7 @@ export async function uploadFiles(chatId, files, text, replyToId) {
         body: formData
     });
 
+    //ждем JSON ответ
     let data = null;
     try {
         data = await response.json();

@@ -5,9 +5,11 @@ import { t } from './i18n.js';
 
 const DEFAULT_AVATAR = 'avatars/default.png';
 
+//функция показа профиля
 export function viewMyProfile() {
     let profilePage = document.getElementById('createWindow');
 
+    //создаем страницу профиля если не нашло
     if (!profilePage) {
         profilePage = document.createElement('div');
         profilePage.id = 'createWindow';
@@ -30,6 +32,7 @@ export function viewMyProfile() {
     const status = user?.lastSeen ?? (user?.status === 'online' ? t('status.online') : t('status.offline'));
     const emailNotifications = user?.emailNotifications ?? true;
 
+    //отрисовка
     profilePage.innerHTML = `
         <div class="profilePage-content">
             <div class="header-profile">
@@ -78,6 +81,7 @@ export function viewMyProfile() {
         ?.addEventListener('change', (e) => toggleEmailNotifications(e.target));
 }
 
+//закрыть окно профиля
 export function closeCreateWindow() {
     const profilePage = document.getElementById('createWindow');
     if (profilePage) {
@@ -87,6 +91,7 @@ export function closeCreateWindow() {
     }
 }
 
+//сохранение настройки email-уведомлений
 export async function toggleEmailNotifications(checkbox) {
     const previousChecked = checkbox.checked;
     const emailNotifications = !checkbox.checked;

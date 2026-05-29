@@ -21,6 +21,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+
+//главная конфигурация безопасности
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -43,11 +45,13 @@ public class ApplicationConfig {
             "/ws/**"
     };
 
+    //создание Spring-bean для хеширования паролей
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    //для механизма аутентификации
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration configuration
@@ -55,6 +59,7 @@ public class ApplicationConfig {
         return configuration.getAuthenticationManager();
     }
 
+    //какие запросы разрешены
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -79,6 +84,7 @@ public class ApplicationConfig {
         return http.build();
     }
 
+    //поведение при неавторизованном доступе
     private AuthenticationEntryPoint authEntryPoint() {
         return (request, response, ex) -> {
             if (request.getRequestURI().startsWith("/api/")) {
@@ -91,6 +97,7 @@ public class ApplicationConfig {
         };
     }
 
+    //поведение при 403 Forbidden
     private AccessDeniedHandler accessDeniedHandler() {
         return (request, response, ex) -> {
             response.setStatus(HttpStatus.FORBIDDEN.value());

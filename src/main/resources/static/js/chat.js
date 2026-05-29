@@ -35,6 +35,7 @@ function getMessageText(msg) {
     return typeof text === 'string' ? text.trim() : '';
 }
 
+//если вложение прислали то мы отображаем тип файла
 function getAttachmentFallback(type) {
     switch (type) {
         case 'image':
@@ -55,19 +56,26 @@ function getAttachmentFallback(type) {
 // РЕНДЕР СООБЩЕНИЯ
 // ========================
 
-// ✅ ТЕПЕРЬ ФУНКЦИЯ ПРИНИМАЕТ МАССИВ ВСЕХ СООБЩЕНИЙ ДЛЯ ПОИСКА ОРИГИНАЛА
+// ФУНКЦИЯ ПРИНИМАЕТ МАССИВ ВСЕХ СООБЩЕНИЙ ДЛЯ ПОИСКА ОРИГИНАЛА
 function buildMessage(msg, allMessages = []) {
+
+    //определяем чье сообщение
     const isOwn = Number(msg.senderId) === Number(state.currentUser?.id);
+
+    //какие вложения есть
     const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+
+    //текст сообщеиня
     const text = getMessageText(msg);
 
+    //генерация html кода чтобы его вставить
     const attachmentsHtml = attachments.length > 0 ? renderAttachments(attachments) : '';
     const textHtml = text ? `<div class="msg-text">${escapeHtml(text)}</div>` : '';
     const needsAttachmentFallback = !text && attachments.length === 0 && msg.type && msg.type !== 'text';
     const attachmentFallbackHtml = needsAttachmentFallback ? `<div class="msg-text">${escapeHtml(getAttachmentFallback(msg.type))}</div>` : '';
 
     // ==========================================
-    // ✅ УМНЫЙ БЛОК ОТВЕТА (ИЩЕТ ОРИГИНАЛЬНЫЙ ТЕКСТ)
+    // УМНЫЙ БЛОК ОТВЕТА (ИЩЕТ ОРИГИНАЛЬНЫЙ ТЕКСТ)
     // ==========================================
     let replyHtml = '';
     if (msg.replyToId) {
@@ -178,7 +186,7 @@ export function renderMessages(messages) {
     const container = document.getElementById('messagesContainer');
     if (!container) return;
 
-    // ✅ ПЕРЕДАЕМ ВЕСЬ МАССИВ messages ВНУТРЬ buildMessage
+    // ПЕРЕДАЕМ ВЕСЬ МАССИВ messages ВНУТРЬ buildMessage
     const html = (messages ?? [])
         .map(msg => buildMessage(msg, messages))
         .filter(Boolean)
@@ -241,23 +249,34 @@ export function updateMessageStatus(messageId, status) {
 // ========================
 
 export function startReadObserver() {
+
+    //отключаем старый смотритель
     if (readObserver) {
         readObserver.disconnect();
     }
 
+    //находим контейнер в котором содержаться сообщения
     const container = document.getElementById('messagesContainer');
     if (!container) return;
 
+    //браузерный механизм, который позволяет понять появился ли элемент в видимой области контейнера
     readObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
+
+            //если не видим сообщение то ничего не делать
             if (!entry.isIntersecting) return;
 
             const msgEl = entry.target;
             const isOwn = msgEl.classList.contains('message-out');
 
+            //проверка если чужое сообщение и не отмечено
             if (!isOwn && msgEl.dataset.read !== 'true') {
+
+                //создаем отметку что оно прочитано
                 msgEl.dataset.read = 'true';
                 readObserver.unobserve(msgEl);
+
+                //отправляем информацию что оно прочитано
                 sendReadReceipt(msgEl.dataset.id, state.currentChatId);
             }
         });
@@ -266,6 +285,7 @@ export function startReadObserver() {
         threshold: 0.5
     });
 
+    //смотрим за входящими сообщениями
     container.querySelectorAll('.message-in').forEach(el => {
         readObserver.observe(el);
     });

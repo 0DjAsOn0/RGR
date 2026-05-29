@@ -20,12 +20,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@RestControllerAdvice
+@RestControllerAdvice   //глобальный обработчик для REST-контроллеров
 public class GlobalExceptionHandler {
 
     // ========================
     // ВАЛИДАЦИЯ
     // ========================
+
+    //аннотация на конкретный метод
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidation(
             MethodArgumentNotValidException ex
